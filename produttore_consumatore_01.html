@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Produttore–Consumatore con semaforo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a1a2e;font-family:system-ui,sans-serif;padding:16px}
+.lim{min-height:100vh;padding:16px}
+.title-bar{text-align:center;color:#e2e8f0;font-size:20px;font-weight:500;margin-bottom:14px}
+.main-row{display:grid;grid-template-columns:1fr 160px 1fr;gap:14px;align-items:start;margin-bottom:14px}
+.thread-card{background:#0f172a;border-radius:12px;border:2px solid #334155;padding:14px}
+.thread-title{font-size:15px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.thread-dot{width:12px;height:12px;border-radius:50%;background:#475569;transition:background 0.3s,box-shadow 0.3s;flex-shrink:0}
+.code-line{font-family:monospace;font-size:13px;line-height:2;padding:2px 8px;border-radius:5px;color:#94a3b8;transition:background 0.25s,color 0.25s;white-space:nowrap}
+.code-line.hl-active{background:#1e3a5f;color:#93c5fd}
+.code-line.hl-blocked{background:#2a2000;color:#b45309}
+.code-line.hl-skip{background:#2d1f1f;color:#fca5a5}
+.code-line.hl-write{background:#1f2d1f;color:#86efac}
+.code-line.indent{padding-left:24px}
+.code-line.indent2{padding-left:40px}
+.state-status{font-size:11px;padding:3px 8px;border-radius:5px;font-family:monospace;margin-bottom:8px}
+.var-box{background:#0d1117;border:1px solid #1e293b;border-radius:8px;padding:8px 12px;margin-top:10px}
+.var-label{font-size:10px;color:#475569;margin-bottom:3px;font-family:monospace}
+.var-val{font-size:22px;font-weight:500;font-family:monospace;transition:color 0.3s}
+@keyframes bump{0%{transform:scale(1)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
+.bump{animation:bump 0.35s ease}
+.center-col{display:flex;flex-direction:column;align-items:center;gap:10px}
+.sem-box,.buf-box,.turn-box,.race-box{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:10px;text-align:center;width:100%}
+.sem-label{font-size:10px;color:#64748b;margin-bottom:5px}
+.sem-circle{width:48px;height:48px;border-radius:50%;margin:0 auto 5px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:500;transition:background 0.4s,color 0.4s,border-color 0.4s;border:2px solid transparent}
+.sem-val{font-family:monospace;font-size:13px;font-weight:500;transition:color 0.3s}
+.buf-cell{width:52px;height:52px;border-radius:8px;margin:0 auto 5px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:500;font-family:monospace;border:2px solid #334155;transition:background 0.3s,border-color 0.3s,color 0.3s;color:#475569}
+.turn-val{font-family:monospace;font-size:15px;font-weight:500;color:#e2e8f0;transition:color 0.3s}
+.race-label-txt{font-size:10px;color:#64748b;margin-bottom:4px}
+.race-bars{display:flex;gap:6px;justify-content:center;align-items:flex-end;height:30px;overflow:hidden}
+.race-bar{width:18px;border-radius:3px 3px 0 0;transition:height 0.4s,background 0.3s;flex-shrink:0;max-height:30px}
+.controls{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.ctrl-btn{padding:8px 20px;font-size:14px;border-radius:8px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;cursor:pointer;transition:background 0.2s}
+.ctrl-btn:hover{background:#334155}
+.ctrl-btn.primary{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.ctrl-btn.primary:hover{background:#1e40af}
+.desc-bar{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:11px 16px;text-align:center;font-size:14px;color:#cbd5e1;min-height:50px;line-height:1.6;margin-bottom:12px}
+.desc-bar strong{color:#e2e8f0}
+.desc-bar code{background:#1e293b;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:13px;color:#7dd3fc}
+.log-box{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:10px;max-height:130px;overflow-y:auto}
+.log-line{font-family:monospace;font-size:12px;line-height:1.8;padding:1px 0}
+.log-prod{color:#fbbf24}.log-cons{color:#818cf8}.log-sem{color:#64748b}
+.cycle-badge{font-size:12px;color:#64748b;font-family:monospace}
+.speed-row{display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b}
+input[type=range]{accent-color:#1d4ed8}
+</style>
+</head>
+<body>
+<div class="lim">
+  <div class="title-bar">Produttore–Consumatore con semaforo (threading.Semaphore)</div>
+
+  <div class="main-row">
+
+    <!-- PRODUTTORE -->
+    <div>
+      <div class="thread-card" id="card-p">
+        <div class="thread-title">
+          <div class="thread-dot" id="dot-p"></div>
+          <span style="color:#fbbf24">ProduttoreThread</span>
+        </div>
+        <div id="p-state" class="state-status" style="background:#1a2a1a;color:#4ade80">in attesa...</div>
+        <div class="code-line" id="p1">accedi.acquire()</div>
+        <div class="code-line indent" id="p2">if aChiTocca == "P":</div>
+        <div class="code-line indent2" id="p3">buffer = self.dato</div>
+        <div class="code-line indent2" id="p4">aChiTocca = "C"</div>
+        <div class="code-line indent2" id="p5">print(f"prodotto {self.dato}")</div>
+        <div class="code-line indent2" id="p6">self.dato += 1</div>
+        <div class="code-line" id="p7">accedi.release()</div>
+      </div>
+      <div class="var-box">
+        <div class="var-label">self.dato</div>
+        <div class="var-val" id="var-prod" style="color:#fbbf24">1</div>
+      </div>
+    </div>
+
+    <!-- CENTRO -->
+    <div class="center-col">
+      <div class="sem-box">
+        <div class="sem-label">accedi (semaforo)</div>
+        <div class="sem-circle" id="sem-circle">1</div>
+        <div class="sem-val" id="sem-val">= 1</div>
+      </div>
+      <div class="buf-box">
+        <div class="sem-label">buffer</div>
+        <div class="buf-cell" id="buf-cell">&#8709;</div>
+        <div style="font-size:10px;color:#64748b;font-family:monospace" id="buf-label">None</div>
+      </div>
+      <div class="turn-box">
+        <div class="sem-label">aChiTocca</div>
+        <div class="turn-val" id="turn-val">"P"</div>
+      </div>
+      <div class="race-box">
+        <div class="race-label-txt">contesa semaforo</div>
+        <div class="race-bars">
+          <div class="race-bar" id="bar-p" style="height:4px;background:#fbbf24"></div>
+          <div class="race-bar" id="bar-c" style="height:4px;background:#818cf8"></div>
+        </div>
+        <div style="font-size:10px;color:#64748b;margin-top:3px" id="race-label">—</div>
+      </div>
+      <div class="cycle-badge" id="cycle-lbl">ciclo: 0</div>
+    </div>
+
+    <!-- CONSUMATORE -->
+    <div>
+      <div class="thread-card" id="card-c">
+        <div class="thread-title">
+          <div class="thread-dot" id="dot-c"></div>
+          <span style="color:#818cf8">ConsumatoreThread</span>
+        </div>
+        <div id="c-state" class="state-status" style="background:#1a1a2a;color:#818cf8">in attesa...</div>
+        <div class="code-line" id="c1">accedi.acquire()</div>
+        <div class="code-line indent" id="c2">if aChiTocca == "C":</div>
+        <div class="code-line indent2" id="c3">dato = buffer</div>
+        <div class="code-line indent2" id="c4">buffer = None</div>
+        <div class="code-line indent2" id="c5">aChiTocca = "P"</div>
+        <div class="code-line indent2" id="c6">print(f"consumato {dato}")</div>
+        <div class="code-line" id="c7">accedi.release()</div>
+      </div>
+      <div class="var-box">
+        <div class="var-label">dato</div>
+        <div class="var-val" id="var-cons" style="color:#818cf8">—</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="desc-bar" id="desc">Premi <strong>Avvia</strong> o usa <strong>Passo</strong> per eseguire step by step.</div>
+
+  <div class="controls">
+    <button class="ctrl-btn primary" id="btn-play" onclick="togglePlay()">&#9654; Avvia</button>
+    <button class="ctrl-btn" onclick="doStep()">Passo &rarr;</button>
+    <button class="ctrl-btn" onclick="doReset()">&#8635; Reset</button>
+    <div class="speed-row">
+      <span>Velocit&agrave;</span>
+      <input type="range" id="spd" min="300" max="2000" value="1000" step="100" style="width:90px">
+    </div>
+  </div>
+
+  <div class="log-box" id="log">
+    <div class="log-line log-sem">— log —</div>
+  </div>
+</div>
+
+<script>
+let playing=false,timer=null;
+let dato_prod=1,dato_cons=null,bufVal=null,turn='P',cycleCount=0;
+let seqPos=0;
+let persistentHL={};
+
+const SEM_FREE={bg:'#14532d',border:'#22c55e',color:'#4ade80'};
+const SEM_LOCK={bg:'#450a0a',border:'#ef4444',color:'#f87171'};
+
+const steps=[
+  /* 0 — entrambi in gara, ciclo 1 */
+  {id:'race-1a',
+   clearBlocked:['p1','c1'],
+   hl:{p1:true,c1:true},
+   pState:'esegue accedi.acquire()...',cState:'esegue accedi.acquire()...',
+   dotP:'#f59e0b',dotC:'#a78bfa',raceP:28,raceC:28,raceLabel:'entrambi cercano acquire()',sem:1,
+   desc:'Entrambi i thread eseguono <code>accedi.acquire()</code> contemporaneamente. Semaforo = 1: uno vincerà.'},
+
+  /* 1 — produttore vince */
+  {id:'race-1b',
+   hl:{p1:true,c1:'blocked'},
+   pState:'VINCE — acquire() superata',cState:'bloccato su acquire() — aspetta',
+   dotP:'#fbbf24',dotC:'#b45309',raceP:30,raceC:8,raceLabel:'Produttore vince',sem:0,
+   desc:'Il produttore vince: semaforo → 0. Il consumatore rimane <strong>bloccato su quella riga</strong>.'},
+
+  /* 2 */
+  {id:'p-check',
+   hl:{p2:true},
+   pState:'in sezione critica',cState:'bloccato su acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',raceP:30,raceC:8,raceLabel:'Produttore in CS',sem:0,
+   desc:'Controlla <code>aChiTocca == "P"</code>: è <strong>vero</strong>, entra nel blocco if.'},
+
+  /* 3 */
+  {id:'p-write',
+   hl:{p3:true},bufChange:'write',
+   pState:'in sezione critica — scrive',cState:'bloccato su acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',raceP:30,raceC:8,raceLabel:'Produttore in CS',sem:0,
+   desc:'Scrive nel buffer: <code>buffer = self.dato</code>.'},
+
+  /* 4 */
+  {id:'p-turn',
+   hl:{p4:true},turnChange:'C',
+   pState:'in sezione critica — passa turno',cState:'bloccato su acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',raceP:30,raceC:8,raceLabel:'Produttore in CS',sem:0,
+   desc:'Passa il turno: <code>aChiTocca = "C"</code>.'},
+
+  /* 5 */
+  {id:'p-print',
+   hl:{p5:true},doLog:'prod',
+   pState:'in sezione critica — stampa',cState:'bloccato su acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',raceP:30,raceC:8,raceLabel:'Produttore in CS',sem:0,
+   desc:'Stampa: <code>print(f"prodotto {self.dato}")</code>.'},
+
+  /* 6 */
+  {id:'p-inc',
+   hl:{p6:true},incProd:true,
+   pState:'in sezione critica — incrementa',cState:'bloccato su acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',raceP:30,raceC:8,raceLabel:'Produttore in CS',sem:0,
+   desc:'<code>self.dato += 1</code>. Semaforo ancora 0 — siamo in sezione critica!'},
+
+  /* 7 — release: semaforo torna 1, c1 RIMANE rosso (no clearBlocked) */
+  {id:'p-release',
+   hl:{p7:true},sem:1,
+   pState:'rilascia semaforo',cState:'bloccato su acquire()... (si sblocca!)',
+   dotP:'#fbbf24',dotC:'#b45309',raceP:28,raceC:28,raceLabel:'semaforo libero — contesa!',
+   desc:'<code>accedi.release()</code>: semaforo → 1. Il consumatore era bloccato su <code>acquire()</code>: ora può riprendere.'},
+
+  /* 8 — entrambi di nuovo in gara: clearBlocked c1, poi entrambi blu */
+  {id:'race-2a',
+   clearBlocked:['p1','c1'],
+   hl:{p1:true,c1:true},
+   pState:'esegue accedi.acquire()...',cState:'esegue accedi.acquire()...',
+   dotP:'#f59e0b',dotC:'#a78bfa',raceP:28,raceC:28,raceLabel:'entrambi cercano acquire()',sem:1,
+   desc:'Semaforo libero: entrambi di nuovo in gara su <code>accedi.acquire()</code>.'},
+
+  /* 9 — consumatore vince */
+  {id:'race-2b',
+   hl:{c1:true,p1:'blocked'},
+   pState:'bloccato su acquire() — aspetta',cState:'VINCE — acquire() superata',
+   dotP:'#b45309',dotC:'#818cf8',raceP:8,raceC:30,raceLabel:'Consumatore vince',sem:0,
+   desc:'Il consumatore vince: semaforo → 0. Il produttore rimane <strong>bloccato su quella riga</strong>.'},
+
+  /* 10 */
+  {id:'c-check',
+   hl:{c2:true},
+   pState:'bloccato su acquire()...',cState:'in sezione critica',
+   dotP:'#b45309',dotC:'#818cf8',raceP:8,raceC:30,raceLabel:'Consumatore in CS',sem:0,
+   desc:'Controlla <code>aChiTocca == "C"</code>: è <strong>vero</strong>, entra nel blocco if.'},
+
+  /* 11 */
+  {id:'c-read',
+   hl:{c3:true},readCons:true,
+   pState:'bloccato su acquire()...',cState:'in sezione critica — legge',
+   dotP:'#b45309',dotC:'#818cf8',raceP:8,raceC:30,raceLabel:'Consumatore in CS',sem:0,
+   desc:'Legge: <code>dato = buffer</code>. Salva il valore in variabile locale.'},
+
+  /* 12 */
+  {id:'c-clear',
+   hl:{c4:true},bufChange:'clear',
+   pState:'bloccato su acquire()...',cState:'in sezione critica — svuota',
+   dotP:'#b45309',dotC:'#818cf8',raceP:8,raceC:30,raceLabel:'Consumatore in CS',sem:0,
+   desc:'Svuota il buffer: <code>buffer = None</code>.'},
+
+  /* 13 */
+  {id:'c-turn',
+   hl:{c5:true},turnChange:'P',
+   pState:'bloccato su acquire()...',cState:'in sezione critica — passa turno',
+   dotP:'#b45309',dotC:'#818cf8',raceP:8,raceC:30,raceLabel:'Consumatore in CS',sem:0,
+   desc:'Restituisce il turno: <code>aChiTocca = "P"</code>.'},
+
+  /* 14 */
+  {id:'c-print',
+   hl:{c6:true},doLog:'cons',
+   pState:'bloccato su acquire()...',cState:'in sezione critica — stampa',
+   dotP:'#b45309',dotC:'#818cf8',raceP:8,raceC:30,raceLabel:'Consumatore in CS',sem:0,
+   desc:'Stampa: <code>print(f"consumato {dato}")</code>.'},
+
+  /* 15 — release: semaforo torna 1, p1 RIMANE rosso (no clearBlocked) */
+  {id:'c-release',
+   hl:{c7:true},sem:1,endCycle:true,
+   pState:'bloccato su acquire()... (si sblocca!)',cState:'rilascia semaforo',
+   dotP:'#b45309',dotC:'#818cf8',raceP:28,raceC:28,raceLabel:'semaforo libero — contesa!',
+   desc:'<code>accedi.release()</code>: semaforo → 1. Il produttore era bloccato su <code>acquire()</code>: ora può riprendere.'},
+
+  /* 16 — entrambi di nuovo in gara */
+  {id:'race-3a',
+   clearBlocked:['p1','c1'],
+   hl:{p1:true,c1:true},
+   pState:'esegue accedi.acquire()...',cState:'esegue accedi.acquire()...',
+   dotP:'#f59e0b',dotC:'#a78bfa',raceP:28,raceC:28,raceLabel:'entrambi cercano acquire()',sem:1,
+   desc:'Nuovo ciclo: entrambi di nuovo in gara su <code>accedi.acquire()</code>.'},
+
+  /* 17 — consumatore vince ma turno sbagliato */
+  {id:'race-3b',
+   hl:{c1:'skip',p1:'blocked'},
+   pState:'bloccato su acquire() — aspetta',cState:'VINCE — ma NON è il suo turno!',
+   dotP:'#b45309',dotC:'#f97316',raceP:8,raceC:30,raceLabel:'Consumatore vince (turno P)',sem:0,
+   desc:'<strong>Caso speciale:</strong> il consumatore vince, ma <code>aChiTocca == "P"</code>: il corpo dell\'<code>if</code> viene saltato.'},
+
+  /* 18 */
+  {id:'skip-body',
+   hl:{c2:'skip'},skipDemo:true,
+   pState:'bloccato su acquire()...',cState:'if false — nessuna azione',
+   dotP:'#b45309',dotC:'#f97316',raceP:8,raceC:30,raceLabel:'Consumatore — turno sbagliato',sem:0,
+   desc:'<code>aChiTocca == "C"</code> è <strong>falso</strong>: il corpo dell\'if viene saltato. Passa a <code>release()</code>.'},
+
+  /* 19 */
+  {id:'skip-rel',
+   hl:{c7:'skip'},sem:1,
+   pState:'bloccato su acquire()...',cState:'release() — buffer invariato',
+   dotP:'#b45309',dotC:'#f97316',raceP:8,raceC:30,raceLabel:'Rilascio a vuoto',
+   desc:'<code>accedi.release()</code>: semaforo → 1, ma il buffer <strong>non è stato toccato</strong>. Busy-waiting: riprova.'},
+];
+
+const sequence=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19];
+
+function allCodes(){return['p1','p2','p3','p4','p5','p6','p7','c1','c2','c3','c4','c5','c6','c7']}
+
+function getIndent(el){
+  if(el.classList.contains('indent2'))return ' indent2';
+  if(el.classList.contains('indent'))return ' indent';
+  return '';
+}
+
+function applyClass(id,type){
+  const el=document.getElementById(id);if(!el)return;
+  let cls='code-line'+getIndent(el);
+  if(type===true)cls+=' hl-active';
+  else if(type==='blocked')cls+=' hl-blocked';
+  else if(type==='skip')cls+=' hl-skip';
+  else if(type==='write')cls+=' hl-write';
+  el.className=cls;
+}
+
+function clearHL(){
+  allCodes().forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.className='code-line'+getIndent(el);
+  });
+}
+
+function bump(id){
+  const el=document.getElementById(id);if(!el)return;
+  el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');
+}
+
+function applyStep(s){
+  if(s.clearBlocked) s.clearBlocked.forEach(id=>{delete persistentHL[id];});
+  clearHL();
+  Object.entries(persistentHL).forEach(([id,type])=>applyClass(id,type));
+  Object.entries(s.hl||{}).forEach(([id,type])=>{
+    if(type==='blocked') persistentHL[id]='blocked';
+    applyClass(id,type);
+  });
+
+  document.getElementById('p-state').textContent=s.pState;
+  document.getElementById('c-state').textContent=s.cState;
+
+  const dp=document.getElementById('dot-p'),dc=document.getElementById('dot-c');
+  dp.style.background=s.dotP;dc.style.background=s.dotC;
+  const glowable=c=>c!=='#334155'&&c!=='#b45309';
+  dp.style.boxShadow=glowable(s.dotP)?'0 0 7px '+s.dotP:'none';
+  dc.style.boxShadow=glowable(s.dotC)?'0 0 7px '+s.dotC:'none';
+
+  const barPcol=s.dotP==='#b45309'?'#92400e':s.dotP==='#334155'?'#334155':'#fbbf24';
+  const barCcol=s.dotC==='#b45309'?'#92400e':s.dotC==='#334155'?'#334155':s.dotC==='#f97316'?'#ea580c':'#818cf8';
+  document.getElementById('bar-p').style.height=Math.min(s.raceP||4,28)+'px';
+  document.getElementById('bar-c').style.height=Math.min(s.raceC||4,28)+'px';
+  document.getElementById('bar-p').style.background=barPcol;
+  document.getElementById('bar-c').style.background=barCcol;
+  document.getElementById('race-label').textContent=s.raceLabel||'—';
+
+  const sc=document.getElementById('sem-circle'),sv=document.getElementById('sem-val');
+  if(s.sem!==undefined){
+    const st=s.sem===0?SEM_LOCK:SEM_FREE;
+    sc.style.background=st.bg;sc.style.borderColor=st.border;sc.style.color=st.color;
+    sc.textContent=String(s.sem);sv.style.color=st.color;sv.textContent='= '+s.sem;
+  }
+
+  const buf=document.getElementById('buf-cell'),buflbl=document.getElementById('buf-label');
+  if(s.bufChange==='write'){
+    bufVal=dato_prod;
+    buf.textContent=dato_prod;buf.style.background='#422006';buf.style.borderColor='#f59e0b';buf.style.color='#fcd34d';
+    buflbl.textContent=String(dato_prod);
+    addLog('[PROD] prodotto '+dato_prod,'prod');
+  } else if(s.bufChange==='clear'){
+    addLog('[CONS] consumato '+bufVal,'cons');
+    bufVal=null;buf.textContent='\u2205';buf.style.background='#0f172a';buf.style.borderColor='#334155';buf.style.color='#475569';
+    buflbl.textContent='None';
+  }
+
+  if(s.readCons){
+    dato_cons=bufVal;
+    const vc=document.getElementById('var-cons');
+    vc.textContent=dato_cons!==null?String(dato_cons):'—';
+    bump('var-cons');
+  }
+
+  if(s.incProd){
+    dato_prod++;
+    document.getElementById('var-prod').textContent=String(dato_prod);
+    bump('var-prod');
+  }
+
+  if(s.turnChange){
+    turn=s.turnChange;
+    const tv=document.getElementById('turn-val');
+    tv.textContent='"'+turn+'"';
+    tv.style.color=turn==='P'?'#fbbf24':'#818cf8';
+  }
+
+  if(s.endCycle){
+    cycleCount++;
+    document.getElementById('cycle-lbl').textContent='ciclo: '+cycleCount;
+  }
+
+  document.getElementById('desc').innerHTML=s.desc;
+
+  if(s.skipDemo)addLog('[SEM] consumatore: aChiTocca="P" → if false → skip','sem');
+  if(s.id==='skip-rel')addLog('[SEM] consumatore release() — busy-wait, riprova','sem');
+}
+
+function addLog(msg,type){
+  const log=document.getElementById('log');
+  const d=document.createElement('div');
+  d.className='log-line log-'+(type||'sem');
+  d.textContent=msg;
+  log.appendChild(d);
+  log.scrollTop=log.scrollHeight;
+}
+
+function doStep(){
+  applyStep(steps[sequence[seqPos]]);
+  seqPos=(seqPos+1)%sequence.length;
+}
+
+function togglePlay(){
+  playing=!playing;
+  document.getElementById('btn-play').textContent=playing?'\u23F8 Pausa':'\u25B6 Avvia';
+  if(playing)schedNext();else if(timer)clearTimeout(timer);
+}
+
+function schedNext(){
+  if(!playing)return;
+  const delay=parseInt(document.getElementById('spd').value);
+  timer=setTimeout(()=>{doStep();schedNext();},delay);
+}
+
+function doReset(){
+  playing=false;if(timer)clearTimeout(timer);
+  document.getElementById('btn-play').textContent='\u25B6 Avvia';
+  seqPos=0;dato_prod=1;dato_cons=null;bufVal=null;turn='P';cycleCount=0;persistentHL={};
+  clearHL();
+  const sc=document.getElementById('sem-circle'),sv=document.getElementById('sem-val');
+  sc.style.background=SEM_FREE.bg;sc.style.borderColor=SEM_FREE.border;sc.style.color=SEM_FREE.color;sc.textContent='1';
+  sv.style.color=SEM_FREE.color;sv.textContent='= 1';
+  const buf=document.getElementById('buf-cell');
+  buf.textContent='\u2205';buf.style.background='#0f172a';buf.style.borderColor='#334155';buf.style.color='#475569';
+  document.getElementById('buf-label').textContent='None';
+  const tv=document.getElementById('turn-val');tv.textContent='"P"';tv.style.color='#fbbf24';
+  ['dot-p','dot-c'].forEach(id=>{
+    document.getElementById(id).style.background='#475569';
+    document.getElementById(id).style.boxShadow='none';
+  });
+  document.getElementById('p-state').textContent='in attesa...';
+  document.getElementById('c-state').textContent='in attesa...';
+  document.getElementById('cycle-lbl').textContent='ciclo: 0';
+  document.getElementById('bar-p').style.height='4px';
+  document.getElementById('bar-c').style.height='4px';
+  document.getElementById('race-label').textContent='—';
+  document.getElementById('desc').innerHTML='Premi <strong>Avvia</strong> o usa <strong>Passo</strong> per eseguire step by step.';
+  document.getElementById('log').innerHTML='<div class="log-line log-sem">— log —</div>';
+  document.getElementById('var-prod').textContent='1';
+  document.getElementById('var-cons').textContent='—';
+}
+</script>
+</body>
+</html>
