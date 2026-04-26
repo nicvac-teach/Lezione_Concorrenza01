@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Produttore–Consumatore con due semafori</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a1a2e;font-family:system-ui,sans-serif;padding:16px}
+.lim{min-height:100vh;padding:16px}
+.title-bar{text-align:center;color:#e2e8f0;font-size:20px;font-weight:500;margin-bottom:14px}
+.main-row{display:grid;grid-template-columns:1fr 180px 1fr;gap:14px;align-items:start;margin-bottom:14px}
+.thread-card{background:#0f172a;border-radius:12px;border:2px solid #334155;padding:14px}
+.thread-title{font-size:15px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.thread-dot{width:12px;height:12px;border-radius:50%;background:#475569;transition:background 0.3s,box-shadow 0.3s;flex-shrink:0}
+.code-line{font-family:monospace;font-size:13px;line-height:2;padding:2px 8px;border-radius:5px;color:#94a3b8;transition:background 0.25s,color 0.25s;white-space:nowrap}
+.code-line.hl-active{background:#1e3a5f;color:#93c5fd}
+.code-line.hl-blocked{background:#2a2000;color:#b45309}
+.code-line.hl-write{background:#1f2d1f;color:#86efac}
+.state-status{font-size:11px;padding:3px 8px;border-radius:5px;font-family:monospace;margin-bottom:8px}
+.var-box{background:#0d1117;border:1px solid #1e293b;border-radius:8px;padding:8px 12px;margin-top:10px}
+.var-label{font-size:10px;color:#475569;margin-bottom:3px;font-family:monospace}
+.var-val{font-size:22px;font-weight:500;font-family:monospace;transition:color 0.3s}
+@keyframes bump{0%{transform:scale(1)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
+.bump{animation:bump 0.35s ease}
+.center-col{display:flex;flex-direction:column;align-items:center;gap:10px}
+.sem-box,.buf-box,.cycle-box{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:10px;text-align:center;width:100%}
+.sem-label{font-size:10px;color:#64748b;margin-bottom:5px;font-family:monospace}
+.sem-circle{width:46px;height:46px;border-radius:50%;margin:0 auto 5px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:500;transition:background 0.4s,color 0.4s,border-color 0.4s;border:2px solid transparent}
+.sem-val{font-family:monospace;font-size:13px;font-weight:500;transition:color 0.3s}
+.buf-cell{width:52px;height:52px;border-radius:8px;margin:0 auto 5px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:500;font-family:monospace;border:2px solid #334155;transition:background 0.3s,border-color 0.3s,color 0.3s;color:#475569}
+.controls{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.ctrl-btn{padding:8px 20px;font-size:14px;border-radius:8px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;cursor:pointer;transition:background 0.2s}
+.ctrl-btn:hover{background:#334155}
+.ctrl-btn.primary{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.ctrl-btn.primary:hover{background:#1e40af}
+.desc-bar{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:11px 16px;text-align:center;font-size:14px;color:#cbd5e1;min-height:50px;line-height:1.6;margin-bottom:12px}
+.desc-bar strong{color:#e2e8f0}
+.desc-bar code{background:#1e293b;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:13px;color:#7dd3fc}
+.log-box{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:10px;max-height:130px;overflow-y:auto}
+.log-line{font-family:monospace;font-size:12px;line-height:1.8;padding:1px 0}
+.log-prod{color:#fbbf24}.log-cons{color:#818cf8}.log-sem{color:#64748b}
+.cycle-badge{font-size:12px;color:#64748b;font-family:monospace}
+.speed-row{display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b}
+input[type=range]{accent-color:#1d4ed8}
+</style>
+</head>
+<body>
+<div class="lim">
+  <div class="title-bar">Produttore–Consumatore con due semafori (<code style="font-family:monospace;font-size:15px;color:#86efac">vuoto</code> / <code style="font-family:monospace;font-size:15px;color:#fca5a5">pieno</code>)</div>
+
+  <div class="main-row">
+
+    <!-- PRODUTTORE -->
+    <div>
+      <div class="thread-card" id="card-p">
+        <div class="thread-title">
+          <div class="thread-dot" id="dot-p"></div>
+          <span style="color:#fbbf24">ProduttoreThread</span>
+        </div>
+        <div id="p-state" class="state-status" style="background:#1a2a1a;color:#4ade80">in attesa...</div>
+        <div class="code-line" id="p1">vuoto.acquire()</div>
+        <div class="code-line" id="p2">buffer = self.dato</div>
+        <div class="code-line" id="p3">print(f"prodotto {self.dato}")</div>
+        <div class="code-line" id="p4">self.dato += 1</div>
+        <div class="code-line" id="p5">pieno.release()</div>
+      </div>
+      <div class="var-box">
+        <div class="var-label">self.dato</div>
+        <div class="var-val" id="var-prod" style="color:#fbbf24">1</div>
+      </div>
+    </div>
+
+    <!-- CENTRO -->
+    <div class="center-col">
+      <div class="sem-box">
+        <div class="sem-label">vuoto (celle libere)</div>
+        <div class="sem-circle" id="sem-vuoto-circle">1</div>
+        <div class="sem-val" id="sem-vuoto-val">= 1</div>
+      </div>
+      <div class="sem-box">
+        <div class="sem-label">pieno (celle piene)</div>
+        <div class="sem-circle" id="sem-pieno-circle">0</div>
+        <div class="sem-val" id="sem-pieno-val">= 0</div>
+      </div>
+      <div class="buf-box">
+        <div class="sem-label">buffer</div>
+        <div class="buf-cell" id="buf-cell">&#8709;</div>
+        <div style="font-size:10px;color:#64748b;font-family:monospace" id="buf-label">None</div>
+      </div>
+      <div class="cycle-box">
+        <div class="cycle-badge" id="cycle-lbl">ciclo: 0</div>
+      </div>
+    </div>
+
+    <!-- CONSUMATORE -->
+    <div>
+      <div class="thread-card" id="card-c">
+        <div class="thread-title">
+          <div class="thread-dot" id="dot-c"></div>
+          <span style="color:#818cf8">ConsumatoreThread</span>
+        </div>
+        <div id="c-state" class="state-status" style="background:#1a1a2a;color:#818cf8">in attesa...</div>
+        <div class="code-line" id="c1">pieno.acquire()</div>
+        <div class="code-line" id="c2">dato = buffer</div>
+        <div class="code-line" id="c3">buffer = None</div>
+        <div class="code-line" id="c4">print(f"consumato {dato}")</div>
+        <div class="code-line" id="c5">vuoto.release()</div>
+      </div>
+      <div class="var-box">
+        <div class="var-label">dato</div>
+        <div class="var-val" id="var-cons" style="color:#818cf8">—</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="desc-bar" id="desc">Premi <strong>Avvia</strong> o usa <strong>Passo</strong> per eseguire step by step. I due semafori impongono l'alternanza: niente più <em>busy-waiting</em>.</div>
+
+  <div class="controls">
+    <button class="ctrl-btn primary" id="btn-play" onclick="togglePlay()">&#9654; Avvia</button>
+    <button class="ctrl-btn" onclick="doStep()">Passo &rarr;</button>
+    <button class="ctrl-btn" onclick="doReset()">&#8635; Reset</button>
+    <div class="speed-row">
+      <span>Velocit&agrave;</span>
+      <input type="range" id="spd" min="300" max="2000" value="1000" step="100" style="width:90px">
+    </div>
+  </div>
+
+  <div class="log-box" id="log">
+    <div class="log-line log-sem">— log —</div>
+  </div>
+</div>
+
+<script>
+let playing=false,timer=null;
+let dato_prod=1,dato_cons=null,bufVal=null,cycleCount=0;
+let seqPos=0;
+let persistentHL={};
+
+const SEM_OPEN={bg:'#14532d',border:'#22c55e',color:'#4ade80'};
+const SEM_LOCK={bg:'#450a0a',border:'#ef4444',color:'#f87171'};
+
+const steps=[
+  /* 0 — start: entrambi all'acquire */
+  {id:'start',
+   hl:{p1:true,c1:true},
+   pState:'esegue vuoto.acquire()...',cState:'esegue pieno.acquire()...',
+   dotP:'#f59e0b',dotC:'#a78bfa',
+   vuoto:1,pieno:0,
+   desc:'Entrambi i thread partono. <strong>P</strong> esegue <code>vuoto.acquire()</code>; <strong>C</strong> esegue <code>pieno.acquire()</code>.'},
+
+  /* 1 — P passa, C si blocca */
+  {id:'p-pass-c-block',
+   hl:{p1:true,c1:'blocked'},
+   pState:'P(vuoto) superato',cState:'BLOCCATO su pieno.acquire()',
+   dotP:'#fbbf24',dotC:'#b45309',
+   vuoto:0,pieno:0,
+   desc:'<strong>P</strong> attraversa <code>P(vuoto)</code>: <code>vuoto</code> → 0. <strong>C</strong> trova <code>pieno=0</code>: si <strong>blocca</strong> (nessun dato da consumare).'},
+
+  /* 2 — P scrive */
+  {id:'p-write',
+   hl:{p2:'write'},bufChange:'write',
+   pState:'scrive nel buffer',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<strong>P</strong> scrive: <code>buffer = self.dato</code>.'},
+
+  /* 3 — P stampa */
+  {id:'p-print',
+   hl:{p3:true},doLog:'prod',
+   pState:'stampa',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<strong>P</strong> stampa: <code>print(f"prodotto {self.dato}")</code>.'},
+
+  /* 4 — P incrementa */
+  {id:'p-inc',
+   hl:{p4:true},incProd:true,
+   pState:'incrementa il dato',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>self.dato += 1</code>.'},
+
+  /* 5 — P V(pieno): segnala dato pronto */
+  {id:'p-release',
+   hl:{p5:true},
+   pState:'V(pieno) — segnala dato pronto',cState:'bloccato (sta per sbloccarsi)',
+   dotP:'#fbbf24',dotC:'#b45309',
+   pieno:1,
+   desc:'<strong>P</strong> esegue <code>V(pieno)</code>: <code>pieno</code> → 1. Il consumatore può ora attraversare <code>P(pieno)</code>.'},
+
+  /* 6 — P torna ad acquire e si blocca; C passa */
+  {id:'c-pass-p-block',
+   clearBlocked:['c1'],
+   hl:{p1:'blocked',c1:true},
+   pState:'BLOCCATO su vuoto.acquire()',cState:'P(pieno) superato',
+   dotP:'#b45309',dotC:'#818cf8',
+   vuoto:0,pieno:0,
+   desc:'<strong>P</strong> riprova <code>P(vuoto)</code> ma <code>vuoto=0</code>: si <strong>blocca</strong>. <strong>C</strong> attraversa <code>P(pieno)</code>: <code>pieno</code> → 0.'},
+
+  /* 7 — C legge */
+  {id:'c-read',
+   hl:{c2:'write'},readCons:true,
+   pState:'bloccato su vuoto.acquire()...',cState:'legge dal buffer',
+   dotP:'#b45309',dotC:'#818cf8',
+   desc:'<strong>C</strong> legge: <code>dato = buffer</code>.'},
+
+  /* 8 — C svuota buffer */
+  {id:'c-clear',
+   hl:{c3:true},bufChange:'clear',
+   pState:'bloccato su vuoto.acquire()...',cState:'svuota il buffer',
+   dotP:'#b45309',dotC:'#818cf8',
+   desc:'<strong>C</strong> svuota: <code>buffer = None</code>.'},
+
+  /* 9 — C stampa */
+  {id:'c-print',
+   hl:{c4:true},doLog:'cons',
+   pState:'bloccato su vuoto.acquire()...',cState:'stampa',
+   dotP:'#b45309',dotC:'#818cf8',
+   desc:'<strong>C</strong> stampa: <code>print(f"consumato {dato}")</code>.'},
+
+  /* 10 — C V(vuoto): segnala cella libera */
+  {id:'c-release',
+   hl:{c5:true},
+   pState:'bloccato (sta per sbloccarsi)',cState:'V(vuoto) — segnala cella libera',
+   dotP:'#b45309',dotC:'#818cf8',
+   vuoto:1,
+   desc:'<strong>C</strong> esegue <code>V(vuoto)</code>: <code>vuoto</code> → 1. Il produttore può ora attraversare <code>P(vuoto)</code>.'},
+
+  /* 11 — C torna ad acquire e si blocca; P passa — fine ciclo */
+  {id:'p-pass-c-block-2',
+   clearBlocked:['p1'],
+   hl:{p1:true,c1:'blocked'},
+   pState:'P(vuoto) superato',cState:'BLOCCATO su pieno.acquire()',
+   dotP:'#fbbf24',dotC:'#b45309',
+   vuoto:0,pieno:0,
+   endCycle:true,
+   desc:'<strong>C</strong> riprova <code>P(pieno)</code> ma <code>pieno=0</code>: si <strong>blocca</strong>. <strong>P</strong> attraversa <code>P(vuoto)</code>: <code>vuoto</code> → 0. Nuovo ciclo.'},
+];
+
+const sequence=[0,1,2,3,4,5,6,7,8,9,10,11];
+
+function allCodes(){return['p1','p2','p3','p4','p5','c1','c2','c3','c4','c5']}
+
+function applyClass(id,type){
+  const el=document.getElementById(id);if(!el)return;
+  let cls='code-line';
+  if(type===true)cls+=' hl-active';
+  else if(type==='blocked')cls+=' hl-blocked';
+  else if(type==='write')cls+=' hl-write';
+  el.className=cls;
+}
+
+function clearHL(){
+  allCodes().forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.className='code-line';
+  });
+}
+
+function bump(id){
+  const el=document.getElementById(id);if(!el)return;
+  el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');
+}
+
+function setSem(name,val){
+  const c=document.getElementById('sem-'+name+'-circle');
+  const v=document.getElementById('sem-'+name+'-val');
+  const st=val===0?SEM_LOCK:SEM_OPEN;
+  c.style.background=st.bg;c.style.borderColor=st.border;c.style.color=st.color;
+  c.textContent=String(val);
+  v.style.color=st.color;v.textContent='= '+val;
+}
+
+function applyStep(s){
+  if(s.clearBlocked) s.clearBlocked.forEach(id=>{delete persistentHL[id];});
+  clearHL();
+  Object.entries(persistentHL).forEach(([id,type])=>applyClass(id,type));
+  Object.entries(s.hl||{}).forEach(([id,type])=>{
+    if(type==='blocked') persistentHL[id]='blocked';
+    applyClass(id,type);
+  });
+
+  document.getElementById('p-state').textContent=s.pState;
+  document.getElementById('c-state').textContent=s.cState;
+
+  const dp=document.getElementById('dot-p'),dc=document.getElementById('dot-c');
+  dp.style.background=s.dotP;dc.style.background=s.dotC;
+  const glowable=c=>c!=='#334155'&&c!=='#b45309';
+  dp.style.boxShadow=glowable(s.dotP)?'0 0 7px '+s.dotP:'none';
+  dc.style.boxShadow=glowable(s.dotC)?'0 0 7px '+s.dotC:'none';
+
+  if(s.vuoto!==undefined) setSem('vuoto',s.vuoto);
+  if(s.pieno!==undefined) setSem('pieno',s.pieno);
+
+  const buf=document.getElementById('buf-cell'),buflbl=document.getElementById('buf-label');
+  if(s.bufChange==='write'){
+    bufVal=dato_prod;
+    buf.textContent=dato_prod;buf.style.background='#422006';buf.style.borderColor='#f59e0b';buf.style.color='#fcd34d';
+    buflbl.textContent=String(dato_prod);
+    addLog('[PROD] prodotto '+dato_prod,'prod');
+  } else if(s.bufChange==='clear'){
+    addLog('[CONS] consumato '+bufVal,'cons');
+    bufVal=null;buf.textContent='∅';buf.style.background='#0f172a';buf.style.borderColor='#334155';buf.style.color='#475569';
+    buflbl.textContent='None';
+  }
+
+  if(s.readCons){
+    dato_cons=bufVal;
+    const vc=document.getElementById('var-cons');
+    vc.textContent=dato_cons!==null?String(dato_cons):'—';
+    bump('var-cons');
+  }
+
+  if(s.incProd){
+    dato_prod++;
+    document.getElementById('var-prod').textContent=String(dato_prod);
+    bump('var-prod');
+  }
+
+  if(s.endCycle){
+    cycleCount++;
+    document.getElementById('cycle-lbl').textContent='ciclo: '+cycleCount;
+  }
+
+  document.getElementById('desc').innerHTML=s.desc;
+}
+
+function addLog(msg,type){
+  const log=document.getElementById('log');
+  const d=document.createElement('div');
+  d.className='log-line log-'+(type||'sem');
+  d.textContent=msg;
+  log.appendChild(d);
+  log.scrollTop=log.scrollHeight;
+}
+
+function doStep(){
+  applyStep(steps[sequence[seqPos]]);
+  seqPos++;
+  if(seqPos>=sequence.length) seqPos=2;  // dopo il primo ciclo, salta lo start-up
+}
+
+function togglePlay(){
+  playing=!playing;
+  document.getElementById('btn-play').textContent=playing?'⏸ Pausa':'▶ Avvia';
+  if(playing)schedNext();else if(timer)clearTimeout(timer);
+}
+
+function schedNext(){
+  if(!playing)return;
+  const delay=parseInt(document.getElementById('spd').value);
+  timer=setTimeout(()=>{doStep();schedNext();},delay);
+}
+
+function doReset(){
+  playing=false;if(timer)clearTimeout(timer);
+  document.getElementById('btn-play').textContent='▶ Avvia';
+  seqPos=0;dato_prod=1;dato_cons=null;bufVal=null;cycleCount=0;persistentHL={};
+  clearHL();
+  setSem('vuoto',1);
+  setSem('pieno',0);
+  const buf=document.getElementById('buf-cell');
+  buf.textContent='∅';buf.style.background='#0f172a';buf.style.borderColor='#334155';buf.style.color='#475569';
+  document.getElementById('buf-label').textContent='None';
+  ['dot-p','dot-c'].forEach(id=>{
+    document.getElementById(id).style.background='#475569';
+    document.getElementById(id).style.boxShadow='none';
+  });
+  document.getElementById('p-state').textContent='in attesa...';
+  document.getElementById('c-state').textContent='in attesa...';
+  document.getElementById('cycle-lbl').textContent='ciclo: 0';
+  document.getElementById('desc').innerHTML='Premi <strong>Avvia</strong> o usa <strong>Passo</strong> per eseguire step by step. I due semafori impongono l\'alternanza: niente pi&ugrave; <em>busy-waiting</em>.';
+  document.getElementById('log').innerHTML='<div class="log-line log-sem">— log —</div>';
+  document.getElementById('var-prod').textContent='1';
+  document.getElementById('var-cons').textContent='—';
+}
+</script>
+</body>
+</html>

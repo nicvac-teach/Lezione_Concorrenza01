@@ -2,10 +2,7 @@
 
 Materiale sulla **sincronizzazione tra processi**.
 
-## Il problema dei **produttori-consumatori**.
-Riferimento: libro, pagine **164-166**.
+## Indice delle lezioni
 
-## File del progetto
-
-- `produttore_consumatore_01.html`: supporto teorico/esempio in formato HTML.
-- `produttore_consumatore_01.py`: implementazione Python dell'esempio.
+1. [Produttori-Consumatori — soluzione con un semaforo](produttore_consumatore_01.md)
+2. [Produttori-Consumatori — soluzione con due semafori](produttore_consumatore_02.md)
