@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Produttore–Consumatore con buffer circolare</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a1a2e;font-family:system-ui,sans-serif;padding:16px}
+.lim{min-height:100vh;padding:16px}
+.title-bar{text-align:center;color:#e2e8f0;font-size:20px;font-weight:500;margin-bottom:14px}
+.main-row{display:grid;grid-template-columns:1fr 200px 1fr;gap:14px;align-items:start;margin-bottom:14px}
+.thread-card{background:#0f172a;border-radius:12px;border:2px solid #334155;padding:14px;overflow-x:auto}
+.thread-title{font-size:15px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.thread-dot{width:12px;height:12px;border-radius:50%;background:#475569;transition:background 0.3s,box-shadow 0.3s;flex-shrink:0}
+.code-line{font-family:monospace;font-size:12px;line-height:1.9;padding:2px 8px;border-radius:5px;color:#94a3b8;transition:background 0.25s,color 0.25s;white-space:nowrap}
+.code-line.hl-active{background:#1e3a5f;color:#93c5fd}
+.code-line.hl-blocked{background:#2a2000;color:#b45309}
+.code-line.hl-write{background:#1f2d1f;color:#86efac}
+.state-status{font-size:11px;padding:3px 8px;border-radius:5px;font-family:monospace;margin-bottom:8px}
+.var-box{background:#0d1117;border:1px solid #1e293b;border-radius:8px;padding:8px 12px;margin-top:10px}
+.var-label{font-size:10px;color:#475569;margin-bottom:3px;font-family:monospace}
+.var-val{font-size:22px;font-weight:500;font-family:monospace;transition:color 0.3s}
+@keyframes bump{0%{transform:scale(1)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
+.bump{animation:bump 0.35s ease}
+.center-col{display:flex;flex-direction:column;align-items:center;gap:10px}
+.sem-box,.cycle-box{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:10px;text-align:center;width:100%}
+.sem-label{font-size:10px;color:#64748b;margin-bottom:5px;font-family:monospace}
+.sem-circle{width:46px;height:46px;border-radius:50%;margin:0 auto 5px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:500;transition:background 0.4s,color 0.4s,border-color 0.4s;border:2px solid transparent}
+.sem-val{font-family:monospace;font-size:13px;font-weight:500;transition:color 0.3s}
+.cycle-badge{font-size:12px;color:#64748b;font-family:monospace}
+.buffer-section{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:14px;margin-bottom:14px}
+.buf-title{font-size:12px;color:#94a3b8;margin-bottom:12px;text-align:center;font-family:monospace}
+.buffer-grid{display:flex;gap:10px;justify-content:center;align-items:center}
+.buf-slot{display:flex;flex-direction:column;align-items:center;gap:4px;width:90px}
+.ptr-m{font-size:11px;color:#fbbf24;height:18px;visibility:hidden;font-family:monospace;font-weight:500;line-height:1.2}
+.ptr-t{font-size:11px;color:#a78bfa;height:18px;visibility:hidden;font-family:monospace;font-weight:500;line-height:1.2}
+.cell{width:64px;height:64px;display:flex;align-items:center;justify-content:center;border:2px solid #334155;border-radius:8px;background:#0d1117;font-family:monospace;font-size:24px;color:#475569;transition:background 0.4s,border-color 0.4s,color 0.4s}
+.cell.full{background:#422006;border-color:#f59e0b;color:#fcd34d}
+.idx{font-size:11px;color:#64748b;font-family:monospace}
+.controls{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.ctrl-btn{padding:8px 20px;font-size:14px;border-radius:8px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;cursor:pointer;transition:background 0.2s}
+.ctrl-btn:hover{background:#334155}
+.ctrl-btn.primary{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.ctrl-btn.primary:hover{background:#1e40af}
+.desc-bar{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:11px 16px;text-align:center;font-size:14px;color:#cbd5e1;min-height:50px;line-height:1.6;margin-bottom:12px}
+.desc-bar strong{color:#e2e8f0}
+.desc-bar code{background:#1e293b;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:13px;color:#7dd3fc}
+.log-box{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:10px;max-height:130px;overflow-y:auto}
+.log-line{font-family:monospace;font-size:12px;line-height:1.8;padding:1px 0}
+.log-prod{color:#fbbf24}.log-cons{color:#818cf8}.log-sem{color:#64748b}
+.speed-row{display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b}
+input[type=range]{accent-color:#1d4ed8}
+</style>
+</head>
+<body>
+<div class="lim">
+  <div class="title-bar">Produttore–Consumatore: buffer circolare con semafori generalizzati</div>
+
+  <div class="main-row">
+
+    <!-- PRODUTTORE -->
+    <div>
+      <div class="thread-card" id="card-p">
+        <div class="thread-title">
+          <div class="thread-dot" id="dot-p"></div>
+          <span style="color:#fbbf24">ProduttoreThread</span>
+        </div>
+        <div id="p-state" class="state-status" style="background:#1a2a1a;color:#4ade80">in attesa...</div>
+        <div class="code-line" id="p1">vuoto.acquire()</div>
+        <div class="code-line" id="p2">buffer[metti] = self.dato</div>
+        <div class="code-line" id="p3">print(f"[PROD] prodotto {self.dato} in buffer[{metti}]")</div>
+        <div class="code-line" id="p4">metti = (metti + 1) % DIM_BUFFER</div>
+        <div class="code-line" id="p5">self.dato += 1</div>
+        <div class="code-line" id="p6">pieno.release()</div>
+      </div>
+      <div class="var-box">
+        <div class="var-label">self.dato</div>
+        <div class="var-val" id="var-prod" style="color:#fbbf24">1</div>
+      </div>
+    </div>
+
+    <!-- CENTRO -->
+    <div class="center-col">
+      <div class="sem-box">
+        <div class="sem-label">vuoto (celle libere)</div>
+        <div class="sem-circle" id="sem-vuoto-circle">3</div>
+        <div class="sem-val" id="sem-vuoto-val">= 3</div>
+      </div>
+      <div class="sem-box">
+        <div class="sem-label">pieno (celle piene)</div>
+        <div class="sem-circle" id="sem-pieno-circle">0</div>
+        <div class="sem-val" id="sem-pieno-val">= 0</div>
+      </div>
+      <div class="cycle-box">
+        <div class="cycle-badge" id="cycle-lbl">DIM_BUFFER = 3</div>
+      </div>
+    </div>
+
+    <!-- CONSUMATORE -->
+    <div>
+      <div class="thread-card" id="card-c">
+        <div class="thread-title">
+          <div class="thread-dot" id="dot-c"></div>
+          <span style="color:#818cf8">ConsumatoreThread</span>
+        </div>
+        <div id="c-state" class="state-status" style="background:#1a1a2a;color:#818cf8">in attesa...</div>
+        <div class="code-line" id="c1">pieno.acquire()</div>
+        <div class="code-line" id="c2">dato = buffer[togli]</div>
+        <div class="code-line" id="c3">print(f"[CONS] consumato {dato} da buffer[{togli}]")</div>
+        <div class="code-line" id="c4">togli = (togli + 1) % DIM_BUFFER</div>
+        <div class="code-line" id="c5">vuoto.release()</div>
+      </div>
+      <div class="var-box">
+        <div class="var-label">dato</div>
+        <div class="var-val" id="var-cons" style="color:#818cf8">—</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="buffer-section">
+    <div class="buf-title">buffer circolare (array di DIM_BUFFER celle)</div>
+    <div class="buffer-grid">
+      <div class="buf-slot">
+        <div class="ptr-m" id="m-0">▼ metti</div>
+        <div class="cell" id="cell-0">∅</div>
+        <div class="ptr-t" id="t-0">▲ togli</div>
+        <div class="idx">[0]</div>
+      </div>
+      <div class="buf-slot">
+        <div class="ptr-m" id="m-1">▼ metti</div>
+        <div class="cell" id="cell-1">∅</div>
+        <div class="ptr-t" id="t-1">▲ togli</div>
+        <div class="idx">[1]</div>
+      </div>
+      <div class="buf-slot">
+        <div class="ptr-m" id="m-2">▼ metti</div>
+        <div class="cell" id="cell-2">∅</div>
+        <div class="ptr-t" id="t-2">▲ togli</div>
+        <div class="idx">[2]</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="desc-bar" id="desc">Premi <strong>Avvia</strong> o usa <strong>Passo</strong> per eseguire step by step. Con i semafori generalizzati il produttore può riempire fino a <code>DIM_BUFFER</code> celle senza aspettare il consumatore.</div>
+
+  <div class="controls">
+    <button class="ctrl-btn primary" id="btn-play" onclick="togglePlay()">&#9654; Avvia</button>
+    <button class="ctrl-btn" onclick="doStep()">Passo &rarr;</button>
+    <button class="ctrl-btn" onclick="doReset()">&#8635; Reset</button>
+    <div class="speed-row">
+      <span>Velocit&agrave;</span>
+      <input type="range" id="spd" min="300" max="2000" value="1000" step="100" style="width:90px">
+    </div>
+  </div>
+
+  <div class="log-box" id="log">
+    <div class="log-line log-sem">— log —</div>
+  </div>
+</div>
+
+<script>
+const DIM_BUFFER=3;
+let playing=false,timer=null;
+let dato_prod=1,dato_cons=null,bufCells=[null,null,null],metti=0,togli=0;
+let seqPos=0;
+let persistentHL={};
+
+const SEM_OPEN={bg:'#14532d',border:'#22c55e',color:'#4ade80'};
+const SEM_LOCK={bg:'#450a0a',border:'#ef4444',color:'#f87171'};
+
+const steps=[
+  /* 0 — start */
+  {id:'start',
+   hl:{p1:true,c1:true},
+   pState:'esegue vuoto.acquire()...',cState:'esegue pieno.acquire()...',
+   dotP:'#f59e0b',dotC:'#a78bfa',
+   vuoto:3,pieno:0,
+   desc:'Inizio. <code>vuoto = DIM_BUFFER = 3</code>, <code>pieno = 0</code>. Entrambi i thread eseguono il loro <code>acquire</code>.'},
+
+  /* === Ciclo P #1 === */
+  /* 1 — P passa, C blocca */
+  {id:'p1-pass',
+   hl:{p1:true,c1:'blocked'},
+   pState:'P(vuoto) superato',cState:'BLOCCATO su pieno.acquire()',
+   dotP:'#fbbf24',dotC:'#b45309',
+   vuoto:2,
+   desc:'<strong>P</strong> attraversa <code>P(vuoto)</code>: <code>vuoto</code> → 2. <strong>C</strong> trova <code>pieno=0</code>: si blocca.'},
+
+  /* 2 — P scrive */
+  {id:'p1-write',
+   hl:{p2:'write'},
+   bufWrite:0,
+   pState:'scrive buffer[metti]',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>buffer[metti] = self.dato</code> con <code>metti=0</code>, <code>self.dato=1</code> → <code>buffer[0] = 1</code>.'},
+
+  /* 3 — P print */
+  {id:'p1-print',
+   hl:{p3:true},
+   prodLog:0,
+   pState:'stampa',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<strong>P</strong> stampa: <code>"prodotto 1 in buffer[0]"</code>.'},
+
+  /* 4 — P avanza metti */
+  {id:'p1-metti',
+   hl:{p4:true},
+   metti:1,
+   pState:'avanza metti',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>metti = (0 + 1) % 3</code> → <code>metti = 1</code>.'},
+
+  /* 5 — P incrementa self.dato */
+  {id:'p1-inc',
+   hl:{p5:true},
+   prodInc:true,
+   pState:'incrementa self.dato',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>self.dato += 1</code> → <code>self.dato = 2</code>.'},
+
+  /* 6 — V(pieno) */
+  {id:'p1-rel',
+   hl:{p6:true},
+   pieno:1,
+   pState:'V(pieno) — segnala dato pronto',cState:'bloccato (1 dato disponibile)',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>V(pieno)</code>: <code>pieno</code> → 1. C potrebbe sbloccarsi, ma anche P può ripartire subito grazie a <code>vuoto > 0</code>.'},
+
+  /* === Ciclo P #2 — non aspetta C! === */
+  /* 7 — P pass 2 */
+  {id:'p2-pass',
+   hl:{p1:true},
+   pState:'P(vuoto) superato di nuovo',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   vuoto:1,
+   desc:'<strong>P riparte:</strong> <code>vuoto=2</code>, attraversa <code>P(vuoto)</code> → 1. <strong>Non aspetta C!</strong>'},
+
+  /* 8 — P scrive */
+  {id:'p2-write',
+   hl:{p2:'write'},
+   bufWrite:1,
+   pState:'scrive buffer[metti]',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>buffer[1] = 2</code>.'},
+
+  /* 9 — P print */
+  {id:'p2-print',
+   hl:{p3:true},
+   prodLog:1,
+   pState:'stampa',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<strong>P</strong> stampa: <code>"prodotto 2 in buffer[1]"</code>.'},
+
+  /* 10 — metti avanza */
+  {id:'p2-metti',
+   hl:{p4:true},
+   metti:2,
+   pState:'avanza metti',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>metti = (1 + 1) % 3</code> → <code>metti = 2</code>.'},
+
+  /* 11 — incrementa self.dato */
+  {id:'p2-inc',
+   hl:{p5:true},
+   prodInc:true,
+   pState:'incrementa self.dato',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>self.dato += 1</code> → <code>self.dato = 3</code>.'},
+
+  /* 12 — V(pieno) */
+  {id:'p2-rel',
+   hl:{p6:true},
+   pieno:2,
+   pState:'V(pieno)',cState:'bloccato (2 dati disponibili)',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>V(pieno)</code>: <code>pieno</code> → 2. Il contatore "ricorda" che ci sono 2 dati pronti.'},
+
+  /* === Ciclo P #3 — wraparound === */
+  /* 13 — P pass 3 */
+  {id:'p3-pass',
+   hl:{p1:true},
+   pState:'P(vuoto) superato',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   vuoto:0,
+   desc:'<strong>P</strong> ancora avanti: <code>vuoto</code> → 0. È l\'ultima cella libera.'},
+
+  /* 14 — P scrive */
+  {id:'p3-write',
+   hl:{p2:'write'},
+   bufWrite:2,
+   pState:'scrive buffer[metti]',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>buffer[2] = 3</code>.'},
+
+  /* 15 — P print */
+  {id:'p3-print',
+   hl:{p3:true},
+   prodLog:2,
+   pState:'stampa',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<strong>P</strong> stampa: <code>"prodotto 3 in buffer[2]"</code>.'},
+
+  /* 16 — metti wraparound */
+  {id:'p3-metti',
+   hl:{p4:true},
+   metti:0,
+   pState:'metti — wraparound!',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<strong>Wraparound!</strong> <code>metti = (2 + 1) % 3</code> → <code>metti = 0</code>. Si torna a inizio buffer.'},
+
+  /* 17 — self.dato++ */
+  {id:'p3-inc',
+   hl:{p5:true},
+   prodInc:true,
+   pState:'incrementa self.dato',cState:'bloccato su pieno.acquire()...',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>self.dato += 1</code> → <code>self.dato = 4</code>.'},
+
+  /* 18 — V(pieno) — buffer pieno */
+  {id:'p3-rel',
+   hl:{p6:true},
+   pieno:3,
+   pState:'V(pieno) — buffer pieno!',cState:'bloccato (3 dati: buffer pieno)',
+   dotP:'#fbbf24',dotC:'#b45309',
+   desc:'<code>V(pieno)</code>: <code>pieno</code> → 3. <strong>Buffer pieno!</strong> Tutte e 3 le celle contengono dati da consumare.'},
+
+  /* 19 — P loop, blocca! */
+  {id:'p-block',
+   hl:{p1:'blocked'},
+   pState:'BLOCCATO su vuoto.acquire()',cState:'bloccato su pieno.acquire()...',
+   dotP:'#b45309',dotC:'#b45309',
+   desc:'<strong>P</strong> riparte ma <code>vuoto=0</code>: <strong>si blocca</strong>. Niente più posti liberi finché C non consuma.'},
+
+  /* === Ciclo C #1 === */
+  /* 20 — C unblocks */
+  {id:'c-pass',
+   clearBlocked:['c1'],
+   hl:{p1:'blocked',c1:true},
+   pState:'bloccato su vuoto.acquire()...',cState:'P(pieno) superato',
+   dotP:'#b45309',dotC:'#818cf8',
+   pieno:2,
+   desc:'<strong>C</strong> finalmente passa: <code>P(pieno)</code> con <code>pieno=3</code> → <code>pieno = 2</code>.'},
+
+  /* 21 — C legge */
+  {id:'c-read',
+   hl:{c2:'write'},
+   bufRead:0,
+   pState:'bloccato su vuoto.acquire()...',cState:'legge buffer[togli]',
+   dotP:'#b45309',dotC:'#818cf8',
+   desc:'<code>dato = buffer[togli]</code> con <code>togli=0</code> → <code>dato = 1</code>.'},
+
+  /* 22 — C print */
+  {id:'c-print',
+   hl:{c3:true},
+   consLog:0,
+   pState:'bloccato su vuoto.acquire()...',cState:'stampa',
+   dotP:'#b45309',dotC:'#818cf8',
+   desc:'<strong>C</strong> stampa: <code>"consumato 1 da buffer[0]"</code>.'},
+
+  /* 23 — togli avanza */
+  {id:'c-togli',
+   hl:{c4:true},
+   togli:1,
+   pState:'bloccato su vuoto.acquire()...',cState:'avanza togli',
+   dotP:'#b45309',dotC:'#818cf8',
+   desc:'<code>togli = (0 + 1) % 3</code> → <code>togli = 1</code>.'},
+
+  /* 24 — V(vuoto), P si sblocca */
+  {id:'c-rel',
+   clearBlocked:['p1'],
+   hl:{c5:true,p1:true},
+   pState:'P(vuoto) si sblocca!',cState:'V(vuoto)',
+   dotP:'#fbbf24',dotC:'#818cf8',
+   vuoto:1,
+   desc:'<code>V(vuoto)</code>: <code>vuoto</code> → 1. <strong>P si sblocca</strong>: la cella appena liberata (<code>buffer[0]</code>) sarà la prossima a essere riscritta grazie al wraparound di <code>metti</code>.'},
+];
+
+const sequence=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24];
+
+function allCodes(){return['p1','p2','p3','p4','p5','p6','c1','c2','c3','c4','c5']}
+
+function applyClass(id,type){
+  const el=document.getElementById(id);if(!el)return;
+  let cls='code-line';
+  if(type===true)cls+=' hl-active';
+  else if(type==='blocked')cls+=' hl-blocked';
+  else if(type==='write')cls+=' hl-write';
+  el.className=cls;
+}
+
+function clearHL(){
+  allCodes().forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.className='code-line';
+  });
+}
+
+function bump(id){
+  const el=document.getElementById(id);if(!el)return;
+  el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');
+}
+
+function setSem(name,val){
+  const c=document.getElementById('sem-'+name+'-circle');
+  const v=document.getElementById('sem-'+name+'-val');
+  const st=val===0?SEM_LOCK:SEM_OPEN;
+  c.style.background=st.bg;c.style.borderColor=st.border;c.style.color=st.color;
+  c.textContent=String(val);
+  v.style.color=st.color;v.textContent='= '+val;
+}
+
+function updateBufferDisplay(){
+  for(let i=0;i<DIM_BUFFER;i++){
+    const cell=document.getElementById('cell-'+i);
+    cell.textContent=bufCells[i]===null?'∅':bufCells[i];
+    cell.className='cell'+(bufCells[i]!==null?' full':'');
+    document.getElementById('m-'+i).style.visibility=(i===metti)?'visible':'hidden';
+    document.getElementById('t-'+i).style.visibility=(i===togli)?'visible':'hidden';
+  }
+}
+
+function applyStep(s){
+  if(s.clearBlocked) s.clearBlocked.forEach(id=>{delete persistentHL[id];});
+  clearHL();
+  Object.entries(persistentHL).forEach(([id,type])=>applyClass(id,type));
+  Object.entries(s.hl||{}).forEach(([id,type])=>{
+    if(type==='blocked') persistentHL[id]='blocked';
+    applyClass(id,type);
+  });
+
+  document.getElementById('p-state').textContent=s.pState;
+  document.getElementById('c-state').textContent=s.cState;
+
+  const dp=document.getElementById('dot-p'),dc=document.getElementById('dot-c');
+  dp.style.background=s.dotP;dc.style.background=s.dotC;
+  const glowable=c=>c!=='#334155'&&c!=='#b45309';
+  dp.style.boxShadow=glowable(s.dotP)?'0 0 7px '+s.dotP:'none';
+  dc.style.boxShadow=glowable(s.dotC)?'0 0 7px '+s.dotC:'none';
+
+  if(s.vuoto!==undefined) setSem('vuoto',s.vuoto);
+  if(s.pieno!==undefined) setSem('pieno',s.pieno);
+
+  if(s.bufWrite!==undefined){
+    bufCells[s.bufWrite]=dato_prod;
+    bump('cell-'+s.bufWrite);
+  }
+  if(s.prodLog!==undefined){
+    addLog('[PROD] prodotto '+dato_prod+' in buffer['+s.prodLog+']','prod');
+  }
+  if(s.prodInc){
+    dato_prod++;
+    document.getElementById('var-prod').textContent=String(dato_prod);
+    bump('var-prod');
+  }
+  if(s.bufRead!==undefined){
+    dato_cons=bufCells[s.bufRead];
+    bufCells[s.bufRead]=null;
+    document.getElementById('var-cons').textContent=String(dato_cons);
+    bump('var-cons');
+  }
+  if(s.consLog!==undefined){
+    addLog('[CONS] consumato '+dato_cons+' da buffer['+s.consLog+']','cons');
+  }
+  if(s.metti!==undefined) metti=s.metti;
+  if(s.togli!==undefined) togli=s.togli;
+  updateBufferDisplay();
+
+  document.getElementById('desc').innerHTML=s.desc;
+}
+
+function addLog(msg,type){
+  const log=document.getElementById('log');
+  const d=document.createElement('div');
+  d.className='log-line log-'+(type||'sem');
+  d.textContent=msg;
+  log.appendChild(d);
+  log.scrollTop=log.scrollHeight;
+}
+
+function doStep(){
+  if(seqPos>=sequence.length) return;
+  applyStep(steps[sequence[seqPos]]);
+  seqPos++;
+}
+
+function togglePlay(){
+  if(seqPos>=sequence.length) doReset();
+  playing=!playing;
+  document.getElementById('btn-play').textContent=playing?'⏸ Pausa':'▶ Avvia';
+  if(playing)schedNext();else if(timer)clearTimeout(timer);
+}
+
+function schedNext(){
+  if(!playing)return;
+  if(seqPos>=sequence.length){
+    playing=false;
+    document.getElementById('btn-play').textContent='▶ Avvia';
+    return;
+  }
+  const delay=parseInt(document.getElementById('spd').value);
+  timer=setTimeout(()=>{doStep();schedNext();},delay);
+}
+
+function doReset(){
+  playing=false;if(timer)clearTimeout(timer);
+  document.getElementById('btn-play').textContent='▶ Avvia';
+  seqPos=0;dato_prod=1;dato_cons=null;bufCells=[null,null,null];metti=0;togli=0;persistentHL={};
+  clearHL();
+  setSem('vuoto',DIM_BUFFER);
+  setSem('pieno',0);
+  updateBufferDisplay();
+  ['dot-p','dot-c'].forEach(id=>{
+    document.getElementById(id).style.background='#475569';
+    document.getElementById(id).style.boxShadow='none';
+  });
+  document.getElementById('p-state').textContent='in attesa...';
+  document.getElementById('c-state').textContent='in attesa...';
+  document.getElementById('desc').innerHTML='Premi <strong>Avvia</strong> o usa <strong>Passo</strong> per eseguire step by step. Con i semafori generalizzati il produttore può riempire fino a <code>DIM_BUFFER</code> celle senza aspettare il consumatore.';
+  document.getElementById('log').innerHTML='<div class="log-line log-sem">— log —</div>';
+  document.getElementById('var-prod').textContent='1';
+  document.getElementById('var-cons').textContent='—';
+}
+
+// Initial render
+updateBufferDisplay();
+</script>
+</body>
+</html>

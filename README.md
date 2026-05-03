@@ -6,3 +6,4 @@ Materiale sulla **sincronizzazione tra processi**.
 
 1. [Produttori-Consumatori — soluzione con un semaforo](produttore_consumatore_01.md)
 2. [Produttori-Consumatori — soluzione con due semafori](produttore_consumatore_02.md)
+3. [Produttori-Consumatori — buffer circolare e semafori generalizzati](produttore_consumatore_03.md)
