@@ -84,7 +84,8 @@ input[type=range]{accent-color:#1d4ed8}
         <div class="code-line" id="P1-l3">metti = (metti+1) % DIM_BUFFER</div>
         <div class="code-line" id="P1-l4">mutexP.release()</div>
         <div class="code-line" id="P1-l5">buffer[tempo] = self.dato</div>
-        <div class="code-line" id="P1-l6">pieno.release()</div>
+        <div class="code-line" id="P1-l6">self.dato += 1</div>
+        <div class="code-line" id="P1-l7">pieno.release()</div>
         <div class="var-mini">tempo: <b id="P1-tempo">—</b> · self.dato: <b id="P1-dato">1</b></div>
       </div>
       <div class="thread-card" id="card-P2">
@@ -99,7 +100,8 @@ input[type=range]{accent-color:#1d4ed8}
         <div class="code-line" id="P2-l3">metti = (metti+1) % DIM_BUFFER</div>
         <div class="code-line" id="P2-l4">mutexP.release()</div>
         <div class="code-line" id="P2-l5">buffer[tempo] = self.dato</div>
-        <div class="code-line" id="P2-l6">pieno.release()</div>
+        <div class="code-line" id="P2-l6">self.dato += 1</div>
+        <div class="code-line" id="P2-l7">pieno.release()</div>
         <div class="var-mini">tempo: <b id="P2-tempo">—</b> · self.dato: <b id="P2-dato">101</b></div>
       </div>
     </div>
@@ -230,7 +232,7 @@ input[type=range]{accent-color:#1d4ed8}
 <script>
 const DIM_BUFFER=4;
 const SCHEDULE=['P1','P2','C1','C2'];
-const PROD_DESC=['vuoto.acquire()','mutexP.acquire()','tempo = metti','metti = (metti+1) % DIM_BUFFER','mutexP.release()','buffer[tempo] = self.dato','pieno.release()'];
+const PROD_DESC=['vuoto.acquire()','mutexP.acquire()','tempo = metti','metti = (metti+1) % DIM_BUFFER','mutexP.release()','buffer[tempo] = self.dato','self.dato += 1','pieno.release()'];
 const CONS_DESC=['pieno.acquire()','mutexC.acquire()','tempo = togli','togli = (togli+1) % DIM_BUFFER','mutexC.release()','dato = buffer[tempo]','vuoto.release()'];
 
 const SEM_OPEN={bg:'#14532d',border:'#22c55e',color:'#4ade80'};
@@ -268,6 +270,15 @@ function isBlocked(id){
 }
 
 function semName(t){return t.kind==='P'?'mutexP':'mutexC'}
+
+function nextActor(){
+  const intended=SCHEDULE[schedulePos];
+  if(!isBlocked(intended)) return intended;
+  for(const candidate of SCHEDULE){
+    if(candidate!==intended && !isBlocked(candidate)) return candidate;
+  }
+  return null;
+}
 
 function advanceProducer(id){
   const t=threads[id];
@@ -312,9 +323,14 @@ function advanceProducer(id){
       addLog('[PROD-'+id+'] prodotto '+t.dato+' in buffer['+t.tempo+']',id.toLowerCase());
       t.line=6;
       desc='<strong>'+id+'</strong>: <code>buffer['+t.tempo+'] = '+t.dato+'</code> <em>(fuori dalla RC: in parallelo con altri produttori)</em>.';
-      t.dato++;
       break;
-    case 6:{
+    case 6:
+      t.dato++;
+      bumpEl(id+'-dato');
+      t.line=7;
+      desc='<strong>'+id+'</strong>: <code>self.dato += 1</code> → self.dato = '+t.dato+'.';
+      break;
+    case 7:{
       const cWaiter=Object.keys(threads).find(k=>threads[k].kind==='C'&&threads[k].line===0)&&pieno===0;
       pieno++;
       t.line=0;t.tempo=null;
@@ -417,10 +433,11 @@ function doStep(){
 
 function updateUI(desc,actor){
   // Clear all code highlights
-  ['P1','P2','C1','C2'].forEach(id=>{
-    for(let i=0;i<7;i++){
-      document.getElementById(id+'-l'+i).className='code-line';
-    }
+  ['P1','P2'].forEach(id=>{
+    for(let i=0;i<8;i++) document.getElementById(id+'-l'+i).className='code-line';
+  });
+  ['C1','C2'].forEach(id=>{
+    for(let i=0;i<7;i++) document.getElementById(id+'-l'+i).className='code-line';
   });
   // Highlight current line of each thread
   ['P1','P2','C1','C2'].forEach(id=>{
@@ -454,11 +471,16 @@ function updateUI(desc,actor){
     }
   });
 
+  const next=nextActor();
   for(let i=0;i<SCHEDULE.length;i++){
     const el=document.getElementById('sched-'+i);
     const slot=SCHEDULE[i].toLowerCase()+'-slot';
-    el.className='sched-slot '+slot+(i===schedulePos?' active':'');
+    el.className='sched-slot '+slot+(SCHEDULE[i]===next?' active':'');
   }
+  ['P1','P2','C1','C2'].forEach(id=>{
+    document.getElementById('card-'+id).style.borderColor=(id===next?COLORS[id]:'#334155');
+    document.getElementById('card-'+id).style.boxShadow=(id===next?'0 0 10px '+COLORS[id]+'55':'none');
+  });
   document.getElementById('cycle-lbl').textContent='tick: '+tickCount+' · DIM='+DIM_BUFFER;
   document.getElementById('desc').innerHTML=desc;
 }
@@ -520,10 +542,13 @@ function doReset(){
   playing=false;if(timer)clearTimeout(timer);
   document.getElementById('btn-play').textContent='▶ Avvia';
   initState();
+  ['P1','P2'].forEach(id=>{
+    for(let i=0;i<8;i++) document.getElementById(id+'-l'+i).className='code-line';
+  });
+  ['C1','C2'].forEach(id=>{
+    for(let i=0;i<7;i++) document.getElementById(id+'-l'+i).className='code-line';
+  });
   ['P1','P2','C1','C2'].forEach(id=>{
-    for(let i=0;i<7;i++){
-      document.getElementById(id+'-l'+i).className='code-line';
-    }
     document.getElementById(id+'-tempo').textContent='—';
     document.getElementById('dot-'+id).style.background='#475569';
     document.getElementById('dot-'+id).style.boxShadow='none';
@@ -543,6 +568,10 @@ function doReset(){
     const slot=SCHEDULE[i].toLowerCase()+'-slot';
     el.className='sched-slot '+slot;
   }
+  ['P1','P2','C1','C2'].forEach(id=>{
+    document.getElementById('card-'+id).style.borderColor='#334155';
+    document.getElementById('card-'+id).style.boxShadow='none';
+  });
   document.getElementById('cycle-lbl').textContent='tick: 0 · DIM='+DIM_BUFFER;
   document.getElementById('desc').innerHTML='Premi <strong>Avvia</strong> o <strong>Passo</strong>. Lo schedule è round-robin (P1, P2, C1, C2). Osserva come <code>mutexP</code> serializza i due produttori sull\'aggiornamento di <code>metti</code>, mentre la scrittura nel buffer avviene <em>fuori</em> dalla regione critica.';
   document.getElementById('log').innerHTML='<div class="log-line log-sem">— log —</div>';
