@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Produttore–Consumatore con N produttori e M consumatori</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a1a2e;font-family:system-ui,sans-serif;padding:16px}
+.lim{min-height:100vh;padding:16px}
+.title-bar{text-align:center;color:#e2e8f0;font-size:20px;font-weight:500;margin-bottom:14px}
+.main-row{display:grid;grid-template-columns:1fr 220px 1fr;gap:14px;align-items:start;margin-bottom:14px}
+.threads-col{display:flex;flex-direction:column;gap:14px}
+.thread-card{background:#0f172a;border-radius:12px;border:2px solid #334155;padding:12px;overflow-x:auto}
+.thread-title{font-size:14px;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.thread-dot{width:11px;height:11px;border-radius:50%;background:#475569;transition:background 0.3s,box-shadow 0.3s;flex-shrink:0}
+.code-line{font-family:monospace;font-size:11px;line-height:1.85;padding:1px 7px;border-radius:5px;color:#94a3b8;transition:background 0.25s,color 0.25s;white-space:nowrap}
+.code-line.hl-active{background:#1e3a5f;color:#93c5fd}
+.code-line.hl-blocked{background:#2a2000;color:#b45309}
+.code-line.hl-cs{background:#3b1f5f;color:#c4b5fd}
+.code-line.hl-write{background:#1f2d1f;color:#86efac}
+.state-status{font-size:10px;padding:3px 7px;border-radius:5px;font-family:monospace;margin-bottom:6px}
+.var-mini{font-family:monospace;font-size:10px;color:#64748b;margin-top:6px;padding:4px 7px;background:#0d1117;border-radius:5px}
+.var-mini b{color:#cbd5e1}
+@keyframes bump{0%{transform:scale(1)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
+.bump{animation:bump 0.35s ease}
+.center-col{display:flex;flex-direction:column;align-items:center;gap:8px}
+.sem-box,.sched-box,.cycle-box{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:8px;text-align:center;width:100%}
+.sem-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}
+.sem-mini{background:#0f172a;border-radius:8px;border:1px solid #334155;padding:6px;text-align:center}
+.sem-label{font-size:10px;color:#64748b;margin-bottom:3px;font-family:monospace}
+.sem-circle{width:38px;height:38px;border-radius:50%;margin:0 auto 3px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:500;color:#e2e8f0;background:#0d1117;transition:background 0.4s,color 0.4s,border-color 0.4s;border:2px solid transparent}
+.sem-val{font-family:monospace;font-size:11px;font-weight:500;color:#94a3b8;transition:color 0.3s}
+.sched-row{display:flex;gap:4px;justify-content:center;margin:4px 0;flex-wrap:wrap}
+.sched-slot{padding:3px 7px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-family:monospace;font-size:11px;font-weight:600;background:#0d1117;border:1px solid #1e293b;color:#475569;transition:all 0.3s}
+.sched-slot.p1-slot{color:#fbbf24}
+.sched-slot.p2-slot{color:#f97316}
+.sched-slot.c1-slot{color:#818cf8}
+.sched-slot.c2-slot{color:#06b6d4}
+.sched-slot.active{box-shadow:0 0 8px currentColor;background:#1e293b}
+.cycle-badge{font-size:11px;color:#64748b;font-family:monospace}
+.buffer-section{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:14px;margin-bottom:14px}
+.buf-title{font-size:12px;color:#94a3b8;margin-bottom:12px;text-align:center;font-family:monospace}
+.buffer-grid{display:flex;gap:10px;justify-content:center;align-items:center}
+.buf-slot{display:flex;flex-direction:column;align-items:center;gap:4px;width:80px}
+.ptr-m{font-size:10px;color:#fbbf24;height:16px;visibility:hidden;font-family:monospace;font-weight:500}
+.ptr-t{font-size:10px;color:#a78bfa;height:16px;visibility:hidden;font-family:monospace;font-weight:500}
+.cell{width:60px;height:60px;display:flex;align-items:center;justify-content:center;border:2px solid #334155;border-radius:8px;background:#0d1117;font-family:monospace;font-size:18px;color:#475569;transition:background 0.4s,border-color 0.4s,color 0.4s}
+.cell.full{background:#422006;border-color:#f59e0b;color:#fcd34d}
+.idx{font-size:10px;color:#64748b;font-family:monospace}
+.controls{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.ctrl-btn{padding:8px 20px;font-size:14px;border-radius:8px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;cursor:pointer;transition:background 0.2s}
+.ctrl-btn:hover{background:#334155}
+.ctrl-btn.primary{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.ctrl-btn.primary:hover{background:#1e40af}
+.desc-bar{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:11px 16px;text-align:center;font-size:14px;color:#cbd5e1;min-height:50px;line-height:1.6;margin-bottom:12px}
+.desc-bar strong{color:#e2e8f0}
+.desc-bar code{background:#1e293b;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:13px;color:#7dd3fc}
+.desc-bar em{color:#94a3b8;font-size:12px}
+.log-box{background:#0f172a;border-radius:10px;border:1px solid #334155;padding:10px;max-height:130px;overflow-y:auto}
+.log-line{font-family:monospace;font-size:12px;line-height:1.8;padding:1px 0}
+.log-p1{color:#fbbf24}.log-p2{color:#f97316}.log-c1{color:#818cf8}.log-c2{color:#06b6d4}.log-sem{color:#64748b}
+.speed-row{display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b}
+input[type=range]{accent-color:#1d4ed8}
+</style>
+</head>
+<body>
+<div class="lim">
+  <div class="title-bar">Produttore–Consumatore: 2 produttori + 2 consumatori (mutex su <code style="font-family:monospace;font-size:15px;color:#fcd34d">metti</code> e <code style="font-family:monospace;font-size:15px;color:#a78bfa">togli</code>)</div>
+
+  <div class="main-row">
+
+    <!-- PRODUTTORI -->
+    <div class="threads-col">
+      <div class="thread-card" id="card-P1">
+        <div class="thread-title">
+          <div class="thread-dot" id="dot-P1"></div>
+          <span style="color:#fbbf24">Produttore #1</span>
+        </div>
+        <div id="P1-state" class="state-status" style="background:#1a2a1a;color:#4ade80">in attesa...</div>
+        <div class="code-line" id="P1-l0">vuoto.acquire()</div>
+        <div class="code-line" id="P1-l1">mutexP.acquire()</div>
+        <div class="code-line" id="P1-l2">tempo = metti</div>
+        <div class="code-line" id="P1-l3">metti = (metti+1) % DIM_BUFFER</div>
+        <div class="code-line" id="P1-l4">mutexP.release()</div>
+        <div class="code-line" id="P1-l5">buffer[tempo] = self.dato</div>
+        <div class="code-line" id="P1-l6">pieno.release()</div>
+        <div class="var-mini">tempo: <b id="P1-tempo">—</b> · self.dato: <b id="P1-dato">1</b></div>
+      </div>
+      <div class="thread-card" id="card-P2">
+        <div class="thread-title">
+          <div class="thread-dot" id="dot-P2"></div>
+          <span style="color:#f97316">Produttore #2</span>
+        </div>
+        <div id="P2-state" class="state-status" style="background:#2a1a0a;color:#fb923c">in attesa...</div>
+        <div class="code-line" id="P2-l0">vuoto.acquire()</div>
+        <div class="code-line" id="P2-l1">mutexP.acquire()</div>
+        <div class="code-line" id="P2-l2">tempo = metti</div>
+        <div class="code-line" id="P2-l3">metti = (metti+1) % DIM_BUFFER</div>
+        <div class="code-line" id="P2-l4">mutexP.release()</div>
+        <div class="code-line" id="P2-l5">buffer[tempo] = self.dato</div>
+        <div class="code-line" id="P2-l6">pieno.release()</div>
+        <div class="var-mini">tempo: <b id="P2-tempo">—</b> · self.dato: <b id="P2-dato">101</b></div>
+      </div>
+    </div>
+
+    <!-- CENTRO -->
+    <div class="center-col">
+      <div class="sem-row">
+        <div class="sem-mini">
+          <div class="sem-label">vuoto</div>
+          <div class="sem-circle" id="sem-vuoto-circle">4</div>
+          <div class="sem-val" id="sem-vuoto-val">= 4</div>
+        </div>
+        <div class="sem-mini">
+          <div class="sem-label">pieno</div>
+          <div class="sem-circle" id="sem-pieno-circle">0</div>
+          <div class="sem-val" id="sem-pieno-val">= 0</div>
+        </div>
+      </div>
+      <div class="sem-row">
+        <div class="sem-mini">
+          <div class="sem-label">mutexP</div>
+          <div class="sem-circle" id="sem-mutexP-circle">1</div>
+          <div class="sem-val" id="sem-mutexP-val">= 1</div>
+        </div>
+        <div class="sem-mini">
+          <div class="sem-label">mutexC</div>
+          <div class="sem-circle" id="sem-mutexC-circle">1</div>
+          <div class="sem-val" id="sem-mutexC-val">= 1</div>
+        </div>
+      </div>
+      <div class="sched-box">
+        <div class="sem-label">schedule (round-robin)</div>
+        <div class="sched-row">
+          <span class="sched-slot p1-slot" id="sched-0">P1</span>
+          <span class="sched-slot p2-slot" id="sched-1">P2</span>
+          <span class="sched-slot c1-slot" id="sched-2">C1</span>
+          <span class="sched-slot c2-slot" id="sched-3">C2</span>
+        </div>
+      </div>
+      <div class="cycle-box">
+        <div class="cycle-badge" id="cycle-lbl">tick: 0 · DIM=4</div>
+      </div>
+    </div>
+
+    <!-- CONSUMATORI -->
+    <div class="threads-col">
+      <div class="thread-card" id="card-C1">
+        <div class="thread-title">
+          <div class="thread-dot" id="dot-C1"></div>
+          <span style="color:#818cf8">Consumatore #1</span>
+        </div>
+        <div id="C1-state" class="state-status" style="background:#1a1a2a;color:#818cf8">in attesa...</div>
+        <div class="code-line" id="C1-l0">pieno.acquire()</div>
+        <div class="code-line" id="C1-l1">mutexC.acquire()</div>
+        <div class="code-line" id="C1-l2">tempo = togli</div>
+        <div class="code-line" id="C1-l3">togli = (togli+1) % DIM_BUFFER</div>
+        <div class="code-line" id="C1-l4">mutexC.release()</div>
+        <div class="code-line" id="C1-l5">dato = buffer[tempo]</div>
+        <div class="code-line" id="C1-l6">vuoto.release()</div>
+        <div class="var-mini">tempo: <b id="C1-tempo">—</b> · dato: <b id="C1-dato">—</b></div>
+      </div>
+      <div class="thread-card" id="card-C2">
+        <div class="thread-title">
+          <div class="thread-dot" id="dot-C2"></div>
+          <span style="color:#06b6d4">Consumatore #2</span>
+        </div>
+        <div id="C2-state" class="state-status" style="background:#0a2a2a;color:#06b6d4">in attesa...</div>
+        <div class="code-line" id="C2-l0">pieno.acquire()</div>
+        <div class="code-line" id="C2-l1">mutexC.acquire()</div>
+        <div class="code-line" id="C2-l2">tempo = togli</div>
+        <div class="code-line" id="C2-l3">togli = (togli+1) % DIM_BUFFER</div>
+        <div class="code-line" id="C2-l4">mutexC.release()</div>
+        <div class="code-line" id="C2-l5">dato = buffer[tempo]</div>
+        <div class="code-line" id="C2-l6">vuoto.release()</div>
+        <div class="var-mini">tempo: <b id="C2-tempo">—</b> · dato: <b id="C2-dato">—</b></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="buffer-section">
+    <div class="buf-title">buffer circolare (DIM_BUFFER = 4)</div>
+    <div class="buffer-grid">
+      <div class="buf-slot">
+        <div class="ptr-m" id="m-0">▼ metti</div>
+        <div class="cell" id="cell-0">∅</div>
+        <div class="ptr-t" id="t-0">▲ togli</div>
+        <div class="idx">[0]</div>
+      </div>
+      <div class="buf-slot">
+        <div class="ptr-m" id="m-1">▼ metti</div>
+        <div class="cell" id="cell-1">∅</div>
+        <div class="ptr-t" id="t-1">▲ togli</div>
+        <div class="idx">[1]</div>
+      </div>
+      <div class="buf-slot">
+        <div class="ptr-m" id="m-2">▼ metti</div>
+        <div class="cell" id="cell-2">∅</div>
+        <div class="ptr-t" id="t-2">▲ togli</div>
+        <div class="idx">[2]</div>
+      </div>
+      <div class="buf-slot">
+        <div class="ptr-m" id="m-3">▼ metti</div>
+        <div class="cell" id="cell-3">∅</div>
+        <div class="ptr-t" id="t-3">▲ togli</div>
+        <div class="idx">[3]</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="desc-bar" id="desc">Premi <strong>Avvia</strong> o <strong>Passo</strong>. Lo schedule è round-robin (P1, P2, C1, C2). Osserva come <code>mutexP</code> serializza i due produttori sull'aggiornamento di <code>metti</code>, mentre la scrittura nel buffer avviene <em>fuori</em> dalla regione critica.</div>
+
+  <div class="controls">
+    <button class="ctrl-btn primary" id="btn-play" onclick="togglePlay()">&#9654; Avvia</button>
+    <button class="ctrl-btn" id="btn-step" onclick="doStep()">Passo &rarr;</button>
+    <button class="ctrl-btn" onclick="doReset()">&#8635; Reset</button>
+    <div class="speed-row">
+      <span>Velocit&agrave;</span>
+      <input type="range" id="spd" min="200" max="2000" value="600" step="100" style="width:90px">
+    </div>
+  </div>
+
+  <div class="log-box" id="log">
+    <div class="log-line log-sem">— log —</div>
+  </div>
+</div>
+
+<script>
+const DIM_BUFFER=4;
+const SCHEDULE=['P1','P2','C1','C2'];
+const PROD_DESC=['vuoto.acquire()','mutexP.acquire()','tempo = metti','metti = (metti+1) % DIM_BUFFER','mutexP.release()','buffer[tempo] = self.dato','pieno.release()'];
+const CONS_DESC=['pieno.acquire()','mutexC.acquire()','tempo = togli','togli = (togli+1) % DIM_BUFFER','mutexC.release()','dato = buffer[tempo]','vuoto.release()'];
+
+const SEM_OPEN={bg:'#14532d',border:'#22c55e',color:'#4ade80'};
+const SEM_LOCK={bg:'#450a0a',border:'#ef4444',color:'#f87171'};
+
+const COLORS={P1:'#fbbf24',P2:'#f97316',C1:'#818cf8',C2:'#06b6d4'};
+const DARK={P1:'#92400e',P2:'#7c2d12',C1:'#3730a3',C2:'#155e75'};
+
+let threads,vuoto,pieno,mutexP,mutexC,bufCells,metti,togli,schedulePos,tickCount;
+let playing=false,timer=null;
+
+function initState(){
+  threads={
+    P1:{kind:'P',line:0,tempo:null,dato:1},
+    P2:{kind:'P',line:0,tempo:null,dato:101},
+    C1:{kind:'C',line:0,tempo:null,dato:null},
+    C2:{kind:'C',line:0,tempo:null,dato:null},
+  };
+  vuoto=DIM_BUFFER;pieno=0;mutexP=1;mutexC=1;
+  bufCells=new Array(DIM_BUFFER).fill(null);
+  metti=0;togli=0;
+  schedulePos=0;tickCount=0;
+}
+
+function isBlocked(id){
+  const t=threads[id];
+  if(t.kind==='P'){
+    if(t.line===0 && vuoto===0) return true;
+    if(t.line===1 && mutexP===0) return true;
+  } else {
+    if(t.line===0 && pieno===0) return true;
+    if(t.line===1 && mutexC===0) return true;
+  }
+  return false;
+}
+
+function semName(t){return t.kind==='P'?'mutexP':'mutexC'}
+
+function advanceProducer(id){
+  const t=threads[id];
+  let desc='';
+  switch(t.line){
+    case 0:
+      vuoto--;
+      t.line=1;
+      desc='<strong>'+id+'</strong>: <code>P(vuoto)</code> → vuoto = '+vuoto+'.';
+      break;
+    case 1:
+      mutexP--;
+      t.line=2;
+      desc='<strong>'+id+'</strong>: <code>P(mutexP)</code> → mutexP = 0. <strong>Entra nella regione critica</strong>.';
+      const otherP=Object.keys(threads).find(k=>threads[k].kind==='P'&&k!==id&&threads[k].line===1);
+      if(otherP) desc+=' <em>('+otherP+' resta bloccato fuori)</em>';
+      break;
+    case 2:
+      t.tempo=metti;
+      t.line=3;
+      desc='<strong>'+id+'</strong> in RC: <code>tempo = metti</code> → '+id+'.tempo = '+t.tempo+'. <strong>Cella prenotata.</strong>';
+      break;
+    case 3:{
+      const om=metti;
+      metti=(metti+1)%DIM_BUFFER;
+      const wrap=(metti===0&&om===DIM_BUFFER-1);
+      t.line=4;
+      desc='<strong>'+id+'</strong> in RC: <code>metti = ('+om+'+1) % '+DIM_BUFFER+'</code> → metti = '+metti+(wrap?' <strong>(wraparound!)</strong>':'')+'.';
+      break;
+    }
+    case 4:{
+      mutexP++;
+      t.line=5;
+      desc='<strong>'+id+'</strong>: <code>V(mutexP)</code> → mutexP = 1. Esce dalla RC.';
+      const waiter=Object.keys(threads).find(k=>threads[k].kind==='P'&&k!==id&&threads[k].line===1);
+      if(waiter) desc+=' <strong>'+waiter+' può ora entrare!</strong>';
+      break;
+    }
+    case 5:
+      bufCells[t.tempo]=t.dato;
+      bumpEl('cell-'+t.tempo);
+      addLog('[PROD-'+id+'] prodotto '+t.dato+' in buffer['+t.tempo+']',id.toLowerCase());
+      t.line=6;
+      desc='<strong>'+id+'</strong>: <code>buffer['+t.tempo+'] = '+t.dato+'</code> <em>(fuori dalla RC: in parallelo con altri produttori)</em>.';
+      t.dato++;
+      break;
+    case 6:{
+      const cWaiter=Object.keys(threads).find(k=>threads[k].kind==='C'&&threads[k].line===0)&&pieno===0;
+      pieno++;
+      t.line=0;t.tempo=null;
+      desc='<strong>'+id+'</strong>: <code>V(pieno)</code> → pieno = '+pieno+'.';
+      if(cWaiter){
+        const w=Object.keys(threads).find(k=>threads[k].kind==='C'&&threads[k].line===0);
+        if(w) desc+=' <strong>'+w+' può sbloccarsi!</strong>';
+      }
+      if(pieno===DIM_BUFFER) desc+=' <strong>Buffer pieno!</strong>';
+      break;
+    }
+  }
+  return desc;
+}
+
+function advanceConsumer(id){
+  const t=threads[id];
+  let desc='';
+  switch(t.line){
+    case 0:
+      pieno--;
+      t.line=1;
+      desc='<strong>'+id+'</strong>: <code>P(pieno)</code> → pieno = '+pieno+'.';
+      break;
+    case 1:
+      mutexC--;
+      t.line=2;
+      desc='<strong>'+id+'</strong>: <code>P(mutexC)</code> → mutexC = 0. <strong>Entra nella regione critica</strong>.';
+      const otherC=Object.keys(threads).find(k=>threads[k].kind==='C'&&k!==id&&threads[k].line===1);
+      if(otherC) desc+=' <em>('+otherC+' resta bloccato fuori)</em>';
+      break;
+    case 2:
+      t.tempo=togli;
+      t.line=3;
+      desc='<strong>'+id+'</strong> in RC: <code>tempo = togli</code> → '+id+'.tempo = '+t.tempo+'.';
+      break;
+    case 3:{
+      const ot=togli;
+      togli=(togli+1)%DIM_BUFFER;
+      const wrap=(togli===0&&ot===DIM_BUFFER-1);
+      t.line=4;
+      desc='<strong>'+id+'</strong> in RC: <code>togli = ('+ot+'+1) % '+DIM_BUFFER+'</code> → togli = '+togli+(wrap?' <strong>(wraparound!)</strong>':'')+'.';
+      break;
+    }
+    case 4:{
+      mutexC++;
+      t.line=5;
+      desc='<strong>'+id+'</strong>: <code>V(mutexC)</code> → mutexC = 1. Esce dalla RC.';
+      const waiter=Object.keys(threads).find(k=>threads[k].kind==='C'&&k!==id&&threads[k].line===1);
+      if(waiter) desc+=' <strong>'+waiter+' può ora entrare!</strong>';
+      break;
+    }
+    case 5:
+      t.dato=bufCells[t.tempo];
+      bufCells[t.tempo]=null;
+      bumpEl(id+'-dato');
+      addLog('[CONS-'+id+'] consumato '+t.dato+' da buffer['+t.tempo+']',id.toLowerCase());
+      t.line=6;
+      desc='<strong>'+id+'</strong>: <code>dato = buffer['+t.tempo+'] = '+t.dato+'</code> <em>(fuori dalla RC)</em>.';
+      break;
+    case 6:{
+      const pBlocked=Object.keys(threads).find(k=>threads[k].kind==='P'&&threads[k].line===0)&&vuoto===0;
+      vuoto++;
+      t.line=0;t.tempo=null;
+      desc='<strong>'+id+'</strong>: <code>V(vuoto)</code> → vuoto = '+vuoto+'.';
+      if(pBlocked){
+        const w=Object.keys(threads).find(k=>threads[k].kind==='P'&&threads[k].line===0);
+        if(w) desc+=' <strong>'+w+' può sbloccarsi!</strong>';
+      }
+      break;
+    }
+  }
+  return desc;
+}
+
+function doStep(){
+  const intended=SCHEDULE[schedulePos];
+  let actor=null,intendedBlocked=false;
+  if(!isBlocked(intended)) actor=intended;
+  else{
+    intendedBlocked=true;
+    // try the others in order
+    for(const candidate of SCHEDULE){
+      if(candidate!==intended && !isBlocked(candidate)){
+        actor=candidate;break;
+      }
+    }
+  }
+  if(actor===null){
+    document.getElementById('desc').innerHTML='<strong>Tutti i thread sono bloccati.</strong> Stato anomalo.';
+    return;
+  }
+  const t=threads[actor];
+  let desc=t.kind==='P'?advanceProducer(actor):advanceConsumer(actor);
+  if(intendedBlocked) desc='<em>(turno '+intended+' ma bloccato → avanza '+actor+')</em><br>'+desc;
+  schedulePos=(schedulePos+1)%SCHEDULE.length;
+  tickCount++;
+  updateUI(desc,actor);
+}
+
+function updateUI(desc,actor){
+  // Clear all code highlights
+  ['P1','P2','C1','C2'].forEach(id=>{
+    for(let i=0;i<7;i++){
+      document.getElementById(id+'-l'+i).className='code-line';
+    }
+  });
+  // Highlight current line of each thread
+  ['P1','P2','C1','C2'].forEach(id=>{
+    const t=threads[id];
+    const el=document.getElementById(id+'-l'+t.line);
+    let cls='code-line ';
+    if(isBlocked(id)) cls+='hl-blocked';
+    else if(t.line>=2 && t.line<=3) cls+='hl-cs'; // in critical section
+    else cls+='hl-active';
+    el.className=cls;
+  });
+
+  setSem('vuoto',vuoto);
+  setSem('pieno',pieno);
+  setSem('mutexP',mutexP);
+  setSem('mutexC',mutexC);
+  updateBufferDisplay();
+
+  ['P1','P2','C1','C2'].forEach(id=>{
+    const t=threads[id];
+    document.getElementById(id+'-tempo').textContent=t.tempo===null?'—':String(t.tempo);
+    document.getElementById(id+'-dato').textContent=t.dato===null?'—':String(t.dato);
+    document.getElementById(id+'-state').textContent=stateText(id);
+    const dot=document.getElementById('dot-'+id);
+    if(isBlocked(id)){
+      dot.style.background='#b45309';dot.style.boxShadow='none';
+    } else if(actor===id){
+      dot.style.background=COLORS[id];dot.style.boxShadow='0 0 8px '+COLORS[id];
+    } else {
+      dot.style.background=DARK[id];dot.style.boxShadow='none';
+    }
+  });
+
+  for(let i=0;i<SCHEDULE.length;i++){
+    const el=document.getElementById('sched-'+i);
+    const slot=SCHEDULE[i].toLowerCase()+'-slot';
+    el.className='sched-slot '+slot+(i===schedulePos?' active':'');
+  }
+  document.getElementById('cycle-lbl').textContent='tick: '+tickCount+' · DIM='+DIM_BUFFER;
+  document.getElementById('desc').innerHTML=desc;
+}
+
+function stateText(id){
+  const t=threads[id];
+  const blocked=isBlocked(id);
+  const codes=t.kind==='P'?PROD_DESC:CONS_DESC;
+  if(blocked) return 'BLOCCATO su '+codes[t.line];
+  return 'prossima: '+codes[t.line];
+}
+
+function setSem(name,val){
+  const c=document.getElementById('sem-'+name+'-circle');
+  const v=document.getElementById('sem-'+name+'-val');
+  const st=val===0?SEM_LOCK:SEM_OPEN;
+  c.style.background=st.bg;c.style.borderColor=st.border;c.style.color=st.color;
+  c.textContent=String(val);
+  v.style.color=st.color;v.textContent='= '+val;
+}
+
+function updateBufferDisplay(){
+  for(let i=0;i<DIM_BUFFER;i++){
+    const cell=document.getElementById('cell-'+i);
+    cell.textContent=bufCells[i]===null?'∅':bufCells[i];
+    cell.className='cell'+(bufCells[i]!==null?' full':'');
+    document.getElementById('m-'+i).style.visibility=(i===metti)?'visible':'hidden';
+    document.getElementById('t-'+i).style.visibility=(i===togli)?'visible':'hidden';
+  }
+}
+
+function bumpEl(id){
+  const el=document.getElementById(id);if(!el)return;
+  el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');
+}
+
+function addLog(msg,type){
+  const log=document.getElementById('log');
+  const d=document.createElement('div');
+  d.className='log-line log-'+(type||'sem');
+  d.textContent=msg;
+  log.appendChild(d);
+  log.scrollTop=log.scrollHeight;
+}
+
+function togglePlay(){
+  playing=!playing;
+  document.getElementById('btn-play').textContent=playing?'⏸ Pausa':'▶ Avvia';
+  if(playing)schedNext();else if(timer)clearTimeout(timer);
+}
+
+function schedNext(){
+  if(!playing)return;
+  const delay=parseInt(document.getElementById('spd').value);
+  timer=setTimeout(()=>{doStep();schedNext();},delay);
+}
+
+function doReset(){
+  playing=false;if(timer)clearTimeout(timer);
+  document.getElementById('btn-play').textContent='▶ Avvia';
+  initState();
+  ['P1','P2','C1','C2'].forEach(id=>{
+    for(let i=0;i<7;i++){
+      document.getElementById(id+'-l'+i).className='code-line';
+    }
+    document.getElementById(id+'-tempo').textContent='—';
+    document.getElementById('dot-'+id).style.background='#475569';
+    document.getElementById('dot-'+id).style.boxShadow='none';
+    document.getElementById(id+'-state').textContent='in attesa...';
+  });
+  document.getElementById('P1-dato').textContent='1';
+  document.getElementById('P2-dato').textContent='101';
+  document.getElementById('C1-dato').textContent='—';
+  document.getElementById('C2-dato').textContent='—';
+  setSem('vuoto',DIM_BUFFER);
+  setSem('pieno',0);
+  setSem('mutexP',1);
+  setSem('mutexC',1);
+  updateBufferDisplay();
+  for(let i=0;i<SCHEDULE.length;i++){
+    const el=document.getElementById('sched-'+i);
+    const slot=SCHEDULE[i].toLowerCase()+'-slot';
+    el.className='sched-slot '+slot;
+  }
+  document.getElementById('cycle-lbl').textContent='tick: 0 · DIM='+DIM_BUFFER;
+  document.getElementById('desc').innerHTML='Premi <strong>Avvia</strong> o <strong>Passo</strong>. Lo schedule è round-robin (P1, P2, C1, C2). Osserva come <code>mutexP</code> serializza i due produttori sull\'aggiornamento di <code>metti</code>, mentre la scrittura nel buffer avviene <em>fuori</em> dalla regione critica.';
+  document.getElementById('log').innerHTML='<div class="log-line log-sem">— log —</div>';
+}
+
+initState();
+updateBufferDisplay();
+</script>
+</body>
+</html>
