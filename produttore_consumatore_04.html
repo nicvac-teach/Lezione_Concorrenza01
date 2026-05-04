@@ -80,13 +80,13 @@ input[type=range]{accent-color:#1d4ed8}
         <div id="P1-state" class="state-status" style="background:#1a2a1a;color:#4ade80">in attesa...</div>
         <div class="code-line" id="P1-l0">vuoto.acquire()</div>
         <div class="code-line" id="P1-l1">mutexP.acquire()</div>
-        <div class="code-line" id="P1-l2">tempo = metti</div>
+        <div class="code-line" id="P1-l2">i_metti = metti</div>
         <div class="code-line" id="P1-l3">metti = (metti+1) % DIM_BUFFER</div>
         <div class="code-line" id="P1-l4">mutexP.release()</div>
-        <div class="code-line" id="P1-l5">buffer[tempo] = self.dato</div>
+        <div class="code-line" id="P1-l5">buffer[i_metti] = self.dato</div>
         <div class="code-line" id="P1-l6">self.dato += 1</div>
         <div class="code-line" id="P1-l7">pieno.release()</div>
-        <div class="var-mini">tempo: <b id="P1-tempo">—</b> · self.dato: <b id="P1-dato">1</b></div>
+        <div class="var-mini">i_metti: <b id="P1-i_metti">—</b> · self.dato: <b id="P1-dato">1</b></div>
       </div>
       <div class="thread-card" id="card-P2">
         <div class="thread-title">
@@ -96,13 +96,13 @@ input[type=range]{accent-color:#1d4ed8}
         <div id="P2-state" class="state-status" style="background:#2a1a0a;color:#fb923c">in attesa...</div>
         <div class="code-line" id="P2-l0">vuoto.acquire()</div>
         <div class="code-line" id="P2-l1">mutexP.acquire()</div>
-        <div class="code-line" id="P2-l2">tempo = metti</div>
+        <div class="code-line" id="P2-l2">i_metti = metti</div>
         <div class="code-line" id="P2-l3">metti = (metti+1) % DIM_BUFFER</div>
         <div class="code-line" id="P2-l4">mutexP.release()</div>
-        <div class="code-line" id="P2-l5">buffer[tempo] = self.dato</div>
+        <div class="code-line" id="P2-l5">buffer[i_metti] = self.dato</div>
         <div class="code-line" id="P2-l6">self.dato += 1</div>
         <div class="code-line" id="P2-l7">pieno.release()</div>
-        <div class="var-mini">tempo: <b id="P2-tempo">—</b> · self.dato: <b id="P2-dato">101</b></div>
+        <div class="var-mini">i_metti: <b id="P2-i_metti">—</b> · self.dato: <b id="P2-dato">101</b></div>
       </div>
     </div>
 
@@ -156,12 +156,12 @@ input[type=range]{accent-color:#1d4ed8}
         <div id="C1-state" class="state-status" style="background:#1a1a2a;color:#818cf8">in attesa...</div>
         <div class="code-line" id="C1-l0">pieno.acquire()</div>
         <div class="code-line" id="C1-l1">mutexC.acquire()</div>
-        <div class="code-line" id="C1-l2">tempo = togli</div>
+        <div class="code-line" id="C1-l2">i_togli = togli</div>
         <div class="code-line" id="C1-l3">togli = (togli+1) % DIM_BUFFER</div>
         <div class="code-line" id="C1-l4">mutexC.release()</div>
-        <div class="code-line" id="C1-l5">dato = buffer[tempo]</div>
+        <div class="code-line" id="C1-l5">dato = buffer[i_togli]</div>
         <div class="code-line" id="C1-l6">vuoto.release()</div>
-        <div class="var-mini">tempo: <b id="C1-tempo">—</b> · dato: <b id="C1-dato">—</b></div>
+        <div class="var-mini">i_togli: <b id="C1-i_togli">—</b> · dato: <b id="C1-dato">—</b></div>
       </div>
       <div class="thread-card" id="card-C2">
         <div class="thread-title">
@@ -171,12 +171,12 @@ input[type=range]{accent-color:#1d4ed8}
         <div id="C2-state" class="state-status" style="background:#0a2a2a;color:#06b6d4">in attesa...</div>
         <div class="code-line" id="C2-l0">pieno.acquire()</div>
         <div class="code-line" id="C2-l1">mutexC.acquire()</div>
-        <div class="code-line" id="C2-l2">tempo = togli</div>
+        <div class="code-line" id="C2-l2">i_togli = togli</div>
         <div class="code-line" id="C2-l3">togli = (togli+1) % DIM_BUFFER</div>
         <div class="code-line" id="C2-l4">mutexC.release()</div>
-        <div class="code-line" id="C2-l5">dato = buffer[tempo]</div>
+        <div class="code-line" id="C2-l5">dato = buffer[i_togli]</div>
         <div class="code-line" id="C2-l6">vuoto.release()</div>
-        <div class="var-mini">tempo: <b id="C2-tempo">—</b> · dato: <b id="C2-dato">—</b></div>
+        <div class="var-mini">i_togli: <b id="C2-i_togli">—</b> · dato: <b id="C2-dato">—</b></div>
       </div>
     </div>
 
@@ -232,8 +232,8 @@ input[type=range]{accent-color:#1d4ed8}
 <script>
 const DIM_BUFFER=4;
 const SCHEDULE=['P1','P2','C1','C2'];
-const PROD_DESC=['vuoto.acquire()','mutexP.acquire()','tempo = metti','metti = (metti+1) % DIM_BUFFER','mutexP.release()','buffer[tempo] = self.dato','self.dato += 1','pieno.release()'];
-const CONS_DESC=['pieno.acquire()','mutexC.acquire()','tempo = togli','togli = (togli+1) % DIM_BUFFER','mutexC.release()','dato = buffer[tempo]','vuoto.release()'];
+const PROD_DESC=['vuoto.acquire()','mutexP.acquire()','i_metti = metti','metti = (metti+1) % DIM_BUFFER','mutexP.release()','buffer[i_metti] = self.dato','self.dato += 1','pieno.release()'];
+const CONS_DESC=['pieno.acquire()','mutexC.acquire()','i_togli = togli','togli = (togli+1) % DIM_BUFFER','mutexC.release()','dato = buffer[i_togli]','vuoto.release()'];
 
 const SEM_OPEN={bg:'#14532d',border:'#22c55e',color:'#4ade80'};
 const SEM_LOCK={bg:'#450a0a',border:'#ef4444',color:'#f87171'};
@@ -299,7 +299,7 @@ function advanceProducer(id){
     case 2:
       t.tempo=metti;
       t.line=3;
-      desc='<strong>'+id+'</strong> in RC: <code>tempo = metti</code> → '+id+'.tempo = '+t.tempo+'. <strong>Cella prenotata.</strong>';
+      desc='<strong>'+id+'</strong> in RC: <code>i_metti = metti</code> → '+id+'.i_metti = '+t.tempo+'. <strong>Cella prenotata.</strong>';
       break;
     case 3:{
       const om=metti;
@@ -322,7 +322,7 @@ function advanceProducer(id){
       bumpEl('cell-'+t.tempo);
       addLog('[PROD-'+id+'] prodotto '+t.dato+' in buffer['+t.tempo+']',id.toLowerCase());
       t.line=6;
-      desc='<strong>'+id+'</strong>: <code>buffer['+t.tempo+'] = '+t.dato+'</code> <em>(fuori dalla RC: in parallelo con altri produttori)</em>.';
+      desc='<strong>'+id+'</strong>: <code>buffer[i_metti='+t.tempo+'] = '+t.dato+'</code> <em>(fuori dalla RC: in parallelo con altri produttori)</em>.';
       break;
     case 6:
       t.dato++;
@@ -365,7 +365,7 @@ function advanceConsumer(id){
     case 2:
       t.tempo=togli;
       t.line=3;
-      desc='<strong>'+id+'</strong> in RC: <code>tempo = togli</code> → '+id+'.tempo = '+t.tempo+'.';
+      desc='<strong>'+id+'</strong> in RC: <code>i_togli = togli</code> → '+id+'.i_togli = '+t.tempo+'.';
       break;
     case 3:{
       const ot=togli;
@@ -389,7 +389,7 @@ function advanceConsumer(id){
       bumpEl(id+'-dato');
       addLog('[CONS-'+id+'] consumato '+t.dato+' da buffer['+t.tempo+']',id.toLowerCase());
       t.line=6;
-      desc='<strong>'+id+'</strong>: <code>dato = buffer['+t.tempo+'] = '+t.dato+'</code> <em>(fuori dalla RC)</em>.';
+      desc='<strong>'+id+'</strong>: <code>dato = buffer[i_togli='+t.tempo+'] = '+t.dato+'</code> <em>(fuori dalla RC)</em>.';
       break;
     case 6:{
       const pBlocked=Object.keys(threads).find(k=>threads[k].kind==='P'&&threads[k].line===0)&&vuoto===0;
@@ -458,7 +458,8 @@ function updateUI(desc,actor){
 
   ['P1','P2','C1','C2'].forEach(id=>{
     const t=threads[id];
-    document.getElementById(id+'-tempo').textContent=t.tempo===null?'—':String(t.tempo);
+    const tempoKey=t.kind==='P'?'i_metti':'i_togli';
+    document.getElementById(id+'-'+tempoKey).textContent=t.tempo===null?'—':String(t.tempo);
     document.getElementById(id+'-dato').textContent=t.dato===null?'—':String(t.dato);
     document.getElementById(id+'-state').textContent=stateText(id);
     const dot=document.getElementById('dot-'+id);
@@ -548,8 +549,9 @@ function doReset(){
   ['C1','C2'].forEach(id=>{
     for(let i=0;i<7;i++) document.getElementById(id+'-l'+i).className='code-line';
   });
+  ['P1','P2'].forEach(id=>{ document.getElementById(id+'-i_metti').textContent='—'; });
+  ['C1','C2'].forEach(id=>{ document.getElementById(id+'-i_togli').textContent='—'; });
   ['P1','P2','C1','C2'].forEach(id=>{
-    document.getElementById(id+'-tempo').textContent='—';
     document.getElementById('dot-'+id).style.background='#475569';
     document.getElementById('dot-'+id).style.boxShadow='none';
     document.getElementById(id+'-state').textContent='in attesa...';

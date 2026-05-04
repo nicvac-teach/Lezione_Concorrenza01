@@ -39,14 +39,14 @@ class ProduttoreThread(threading.Thread):
 		while True:
 			vuoto.acquire()        # P(vuoto): attendi una cella libera
 			mutexP.acquire()       # P(mutexP): mutua esclusione tra produttori
-			tempo = metti
+			i_metti = metti
 			metti = (metti + 1) % DIM_BUFFER
 			mutexP.release()       # V(mutexP): rilascia la regione critica
 
 			# Scrittura nel buffer FUORI dalla regione critica:
 			# altri produttori possono "depositare" in parallelo nelle loro celle.
-			buffer[tempo] = self.dato
-			print(f"[PROD-{self.idx}] prodotto {self.dato} in buffer[{tempo}]")
+			buffer[i_metti] = self.dato
+			print(f"[PROD-{self.idx}] prodotto {self.dato} in buffer[{i_metti}]")
 			self.dato += 1
 
 			pieno.release()        # V(pieno): segnala una cella piena
@@ -64,13 +64,13 @@ class ConsumatoreThread(threading.Thread):
 		while True:
 			pieno.acquire()        # P(pieno): attendi una cella piena
 			mutexC.acquire()       # P(mutexC): mutua esclusione tra consumatori
-			tempo = togli
+			i_togli = togli
 			togli = (togli + 1) % DIM_BUFFER
 			mutexC.release()       # V(mutexC): rilascia la regione critica
 
 			# Lettura dal buffer FUORI dalla regione critica.
-			dato = buffer[tempo]
-			print(f"[CONS-{self.idx}] consumato {dato} da buffer[{tempo}]")
+			dato = buffer[i_togli]
+			print(f"[CONS-{self.idx}] consumato {dato} da buffer[{i_togli}]")
 
 			vuoto.release()        # V(vuoto): segnala una cella libera
 

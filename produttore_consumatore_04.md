@@ -45,26 +45,26 @@ semaphore mutexC = 1              // mutex tra consumatori
 buffer array[DIM_BUFFER]
 
 Processo produci(int dato)
-int tempo;
+int i_metti;
 inizio
   P(vuoto)                        // attendi una cella libera
     P(mutexP)                     // entra nella RC dei produttori
-      tempo = metti               // "prenota" la cella
+      i_metti = metti             // "prenota" la cella
       metti = (metti + 1) % DIM_BUFFER;
     V(mutexP)                     // esci dalla RC
-    buffer[tempo] = dato          // deposito (fuori dalla RC)
+    buffer[i_metti] = dato        // deposito (fuori dalla RC)
   V(pieno)                        // segnala dato pronto
 fine
 
 Processo consuma()
-int tempo;
+int i_togli;
 inizio
   P(pieno)                        // attendi un dato pronto
     P(mutexC)                     // entra nella RC dei consumatori
-      tempo = togli               // "prenota" la cella
+      i_togli = togli             // "prenota" la cella
       togli = (togli + 1) % DIM_BUFFER;
     V(mutexC)                     // esci dalla RC
-    <consuma buffer[tempo]>       // prelievo (fuori dalla RC)
+    <consuma buffer[i_togli]>     // prelievo (fuori dalla RC)
   V(vuoto)                        // segnala cella libera
 fine
 ```
@@ -77,7 +77,7 @@ fine
 - di conseguenza i consumatori si fermerebbero, non avendo nulla da consumare;
 - si distruggerebbe il **parallelismo** che il buffer circolare aveva appena introdotto.
 
-La regione critica si limita quindi all'**unica** operazione che richiede esclusività: l'aggiornamento atomico di `metti` (o `togli`). Una volta "prenotato" l'indice salvandolo in `tempo`, ogni produttore può scrivere nella propria cella in parallelo agli altri.
+La regione critica si limita quindi all'**unica** operazione che richiede esclusività: l'aggiornamento atomico di `metti` (o `togli`). Una volta "prenotato" l'indice salvandolo in `i_metti` (o `i_togli`), ogni produttore può scrivere nella propria cella in parallelo agli altri.
 
 ## File del progetto
 
