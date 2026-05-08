@@ -69,6 +69,8 @@ class ConsumatoreThread(threading.Thread):
 
 
 def main():
+    global metti # global anche in ProduttoreThread...
+
     produttori = [ProduttoreThread(i + 1) for i in range(N_PRODUTTORI)]
     consumatori = [ConsumatoreThread(i + 1) for i in range(N_CONSUMATORI)]
 
