@@ -12,3 +12,6 @@ Materiale sulla **sincronizzazione tra processi**.
 ## Esercizi
 
 1. [Esercizio 1 — Centralino telefonico](produttore_consumatore_esercizio01.md)
+   - [Soluzione](produttore_consumatore_esercizio01.py)
+2. [Esercizio 2](produttore_consumatore_esercizio02.md)
+   - [Soluzione](produttore_consumatore_esercizio02.py)
